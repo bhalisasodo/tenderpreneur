@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "../../../../lib/api";
 
@@ -145,12 +146,12 @@ export default function NewBoQPage() {
           <h2 className="text-2xl font-bold text-slate-900">Upload &amp; Ingest Tender BoQ</h2>
           <p className="text-xs text-slate-500">Provide tender details, choose a 1-click South African preset, or upload your PDF/Excel document.</p>
         </div>
-        <a
+        <Link
           href="/contractor"
           className="text-xs font-semibold text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-200"
         >
           Cancel
-        </a>
+        </Link>
       </div>
 
       {/* 1-Click SA Municipal Presets */}
@@ -323,12 +324,12 @@ export default function NewBoQPage() {
             Step 1 of 3: Ingestion &rarr; 2. Line Item Review &rarr; 3. Marketplace Quotes
           </div>
           <div className="flex items-center space-x-3">
-            <a
+            <Link
               href="/contractor"
               className="px-4 py-2.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
             >
               Cancel
-            </a>
+            </Link>
             <button
               type="submit"
               disabled={submitting}

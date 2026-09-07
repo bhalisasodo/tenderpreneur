@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, AuditEventDTO, BoQComparisonDTO } from "@/lib/api";
 import { formatDateTime, formatZAR } from "@/lib/formatters";
@@ -66,18 +67,18 @@ export default function ExportPage() {
           </div>
 
           <div className="flex items-center space-x-2">
-            <a
+            <Link
               href={`/contractor/boqs/${data.boq_id}/quotes`}
               className="px-3.5 py-1.5 rounded-lg text-slate-600 hover:bg-slate-50 font-semibold text-xs border border-slate-200"
             >
               &larr; 2. Compare Quotes
-            </a>
-            <a
+            </Link>
+            <Link
               href={`/contractor/boqs/${data.boq_id}/export`}
               className="px-3.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200"
             >
               3. Export Priced BoQ
-            </a>
+            </Link>
           </div>
         </div>
 

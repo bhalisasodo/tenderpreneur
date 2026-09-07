@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "../../../lib/api";
 
 const ALL_CATEGORIES = [
@@ -115,12 +116,12 @@ export default function SupplierProfilePage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <a
+        <Link
           href="/supplier"
           className="inline-flex items-center text-xs font-bold text-slate-600 hover:text-slate-900"
         >
           &larr; Back to Quote Requests
-        </a>
+        </Link>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api, BoQSummaryDTO } from "../../lib/api";
 import { formatDateTime, formatZAR } from "../../lib/formatters";
 
@@ -134,12 +135,12 @@ export default function ContractorDashboard() {
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
               Upload your tender document (PDF, Excel, or scope text) to begin parsing line items and sourcing verified supplier quotes.
             </p>
-            <a
+            <Link
               href="/contractor/boqs/new"
               className="inline-block mt-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow transition"
             >
               Upload Your First BoQ &rarr;
-            </a>
+            </Link>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -174,24 +175,24 @@ export default function ContractorDashboard() {
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-right space-x-1.5 whitespace-nowrap">
-                      <a
+                      <Link
                         href={`/contractor/boqs/${boq.id}/review`}
                         className="px-2.5 py-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition"
                       >
                         Review Items
-                      </a>
-                      <a
+                      </Link>
+                      <Link
                         href={`/contractor/boqs/${boq.id}/quotes`}
                         className="px-2.5 py-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-xs transition"
                       >
                         Compare Quotes
-                      </a>
-                      <a
+                      </Link>
+                      <Link
                         href={`/contractor/boqs/${boq.id}/export`}
                         className="px-2.5 py-1.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold text-xs transition"
                       >
                         Export
-                      </a>
+                      </Link>
                       <button
                         type="button"
                         onClick={() => {

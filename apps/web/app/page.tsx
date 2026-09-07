@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api, UserDTO } from "../lib/api";
 
 export default function Home() {
@@ -97,12 +98,12 @@ export default function Home() {
             </p>
           </div>
           <div className="pt-6">
-            <a
+            <Link
               href="/contractor"
               className="block w-full text-center py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow transition"
             >
               Enter Contractor Portal &rarr;
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -121,12 +122,12 @@ export default function Home() {
             </p>
           </div>
           <div className="pt-6">
-            <a
+            <Link
               href="/supplier"
               className="block w-full text-center py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow transition"
             >
               Enter Supplier Portal (Mobile) &rarr;
-            </a>
+            </Link>
           </div>
         </div>
       </div>

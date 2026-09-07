@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { api, BoQDetailDTO, LineItemDTO } from "@/lib/api";
 import { formatZAR } from "@/lib/formatters";
@@ -339,24 +340,24 @@ export default function BoQReviewPage() {
           </div>
 
           <div className="flex items-center space-x-2">
-            <a
+            <Link
               href={`/contractor/boqs/${boq.id}/review`}
               className="px-3.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 font-bold text-xs border border-blue-200"
             >
               1. Review &amp; Source
-            </a>
-            <a
+            </Link>
+            <Link
               href={`/contractor/boqs/${boq.id}/quotes`}
               className="px-3.5 py-1.5 rounded-lg text-slate-600 hover:bg-slate-50 font-semibold text-xs border border-slate-200"
             >
               2. Compare Quotes &rarr;
-            </a>
-            <a
+            </Link>
+            <Link
               href={`/contractor/boqs/${boq.id}/export`}
               className="px-3.5 py-1.5 rounded-lg text-slate-600 hover:bg-slate-50 font-semibold text-xs border border-slate-200"
             >
               3. Export Priced BoQ &rarr;
-            </a>
+            </Link>
           </div>
         </div>
       </div>

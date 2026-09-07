@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, BoQComparisonDTO, LineItemComparisonDTO } from "@/lib/api";
 import { formatTimeRemaining, formatZAR, formatDateTime } from "@/lib/formatters";
@@ -151,18 +152,18 @@ export default function QuoteComparisonPage() {
             >
               🔄 Refresh
             </button>
-            <a
+            <Link
               href={`/contractor/boqs/${data.boq_id}/review`}
               className="px-3.5 py-2 rounded-xl text-slate-600 hover:bg-slate-50 font-semibold text-xs border border-slate-200"
             >
               &larr; 1. Review
-            </a>
-            <a
+            </Link>
+            <Link
               href={`/contractor/boqs/${data.boq_id}/export`}
               className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow transition"
             >
               3. Export Priced BoQ &rarr;
-            </a>
+            </Link>
           </div>
         </div>
 

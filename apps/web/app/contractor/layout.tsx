@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api, AuthSession } from "../../lib/api";
 
 export default function ContractorLayout({
@@ -47,19 +48,19 @@ export default function ContractorLayout({
         </div>
 
         <div className="flex items-center space-x-3">
-          <a
+          <Link
             href="/contractor"
             className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition"
           >
             All BoQs
-          </a>
-          <a
+          </Link>
+          <Link
             href="/contractor/boqs/new"
             className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition flex items-center space-x-1"
           >
             <span>+</span>
             <span>Upload New BoQ</span>
-          </a>
+          </Link>
         </div>
       </div>
 

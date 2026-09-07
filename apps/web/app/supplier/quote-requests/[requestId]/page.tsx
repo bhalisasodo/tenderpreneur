@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { api, QuoteRequestDTO } from "@/lib/api";
 import { formatDateTime, formatTimeRemaining, formatZAR } from "@/lib/formatters";
@@ -113,12 +114,12 @@ export default function SupplierQuoteSubmissionPage() {
     <div className="max-w-2xl mx-auto space-y-4">
       {/* Header Back Link */}
       <div className="flex items-center justify-between">
-        <a
+        <Link
           href="/supplier"
           className="inline-flex items-center text-xs font-bold text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 bg-white"
         >
           &larr; Back to Requests
-        </a>
+        </Link>
         <span className="text-xs text-slate-500 font-mono">
           Ref: #{request.id.slice(0, 8)}
         </span>
