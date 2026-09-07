@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Tenderpreneur — AI BoQ Pricing & Supplier Marketplace",
-  description: "AI-native BoQ pricing and verified supplier quote marketplace for South African tender contractors.",
+  title: "Tenderpreneur — BoQ Pricing & Supplier Marketplace",
+  description: "BoQ pricing and verified supplier quote marketplace for South African tender contractors.",
 };
 
 import Navbar from "../components/Navbar";
@@ -24,7 +24,7 @@ export default function RootLayout({
 
         <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
           <div className="max-w-7xl mx-auto px-4">
-            Tenderpreneur &copy; 2026 — AI BoQ Pricing &amp; Verified Supplier-Quote Marketplace for South African Tenders.
+            Tenderpreneur &copy; 2026 — BoQ Pricing &amp; Verified Supplier-Quote Marketplace for South African Tenders.
           </div>
         </footer>
       </body>

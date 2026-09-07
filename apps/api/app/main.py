@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="AI-native BoQ pricing and supplier quote marketplace for South African contractors.",
+    description="BoQ pricing and supplier quote marketplace for South African contractors.",
     lifespan=lifespan,
 )
 

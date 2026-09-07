@@ -284,7 +284,7 @@ export default function NewBoQPage() {
                 <label className="text-xs font-semibold text-slate-700">
                   BoQ Schedule Data (Auto-categorized into Earthworks, Concrete, Masonry, Plumbing, Roofing)
                 </label>
-                <span className="text-[11px] text-slate-500">Multimodal &amp; Heuristic parser active</span>
+                <span className="text-[11px] text-slate-500">Automated schedule processing active</span>
               </div>
               <textarea
                 rows={11}
@@ -294,7 +294,7 @@ export default function NewBoQPage() {
                 className="w-full text-xs font-mono p-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
               />
               <p className="text-[11px] text-slate-500">
-                The parser will automatically identify Bill sections, descriptions, units, quantities, trade categories, and benchmark pricing hints.
+                The system will automatically identify Bill sections, descriptions, units, quantities, trade categories, and benchmark pricing hints.
               </p>
             </div>
           ) : (
@@ -305,7 +305,7 @@ export default function NewBoQPage() {
                   {file ? file.name : "Select Multi-Page BoQ Document (PDF, XLSX, XLS)"}
                 </div>
                 <div className="text-[11px] text-slate-500 mt-1">
-                  {file ? `${(file.size / 1024).toFixed(1)} KB (Ready for multimodal AI parsing)` : "Drag and drop or browse tender PDF / Excel schedule"}
+                  {file ? `${(file.size / 1024).toFixed(1)} KB (Ready to process)` : "Drag and drop or browse tender PDF / Excel schedule"}
                 </div>
                 <input
                   type="file"
@@ -338,10 +338,10 @@ export default function NewBoQPage() {
               {submitting ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>AI Parsing Multi-Page BoQ...</span>
+                  <span>Processing Multi-Page BoQ...</span>
                 </>
               ) : (
-                <span>Create &amp; AI Parse BoQ &rarr;</span>
+                <span>Create &amp; Process BoQ &rarr;</span>
               )}
             </button>
           </div>

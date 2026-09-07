@@ -54,7 +54,7 @@ export default function ContractorDashboard() {
       case "draft":
         return <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">Draft Document</span>;
       case "parsed":
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">Parsed &amp; Review</span>;
+        return <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">Processed &amp; Review</span>;
       case "in_sourcing":
         return <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">Quotes In Progress</span>;
       case "priced":
@@ -133,7 +133,7 @@ export default function ContractorDashboard() {
             <div className="text-3xl">📄</div>
             <h4 className="font-bold text-slate-800">No BoQs Created Yet</h4>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Upload your tender document (PDF, Excel, or scope text) to begin parsing line items and sourcing verified supplier quotes.
+              Upload your tender document (PDF, Excel, or scope text) to begin processing line items and sourcing verified supplier quotes.
             </p>
             <Link
               href="/contractor/boqs/new"

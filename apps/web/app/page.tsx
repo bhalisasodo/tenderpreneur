@@ -49,7 +49,7 @@ export default function Home() {
           <span>🇿🇦 Built for South African Tender Contractors &amp; Suppliers</span>
         </div>
         <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 tracking-tight">
-          AI BoQ Pricing &amp; <br />
+          BoQ Pricing &amp; <br />
           <span className="text-blue-600">Verified Supplier-Quote Marketplace</span>
         </h1>
         <p className="max-w-2xl mx-auto text-base sm:text-lg text-slate-600 leading-relaxed">
@@ -61,8 +61,8 @@ export default function Home() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative">
           <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold flex items-center justify-center mb-3">1</div>
-          <h3 className="font-semibold text-slate-900 text-sm mb-1">Upload &amp; AI Parse</h3>
-          <p className="text-xs text-slate-600">Upload PDF, Excel or paste scope. Model extracts structured items with manual correction.</p>
+          <h3 className="font-semibold text-slate-900 text-sm mb-1">Upload &amp; Process</h3>
+          <p className="text-xs text-slate-600">Upload PDF, Excel or paste scope. Automatically extracts structured items with manual review and correction.</p>
         </div>
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative">
           <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center mb-3">2</div>
@@ -94,7 +94,7 @@ export default function Home() {
             </div>
             <h2 className="text-2xl font-bold text-slate-900">Contractor Workspace</h2>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Upload tender specifications, review AI-parsed BoQ tables, broadcast sourcing requests to matched suppliers, compare live incoming quotes, and generate export schedules.
+              Upload tender specifications, review processed BoQ tables, broadcast sourcing requests to matched suppliers, compare live incoming quotes, and generate export schedules.
             </p>
           </div>
           <div className="pt-6">

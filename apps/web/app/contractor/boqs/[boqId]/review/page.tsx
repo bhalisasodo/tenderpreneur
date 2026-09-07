@@ -334,7 +334,7 @@ export default function BoQReviewPage() {
               <span>&bull;</span>
               <span>Region: <strong className="text-slate-800">{boq.region}</strong></span>
               <span>&bull;</span>
-              <span>Total Parsed: <strong className="text-slate-800">{boq.line_items.length}</strong></span>
+              <span>Total Items: <strong className="text-slate-800">{boq.line_items.length}</strong></span>
             </div>
             <h1 className="text-2xl font-bold text-slate-900">{boq.title}</h1>
           </div>
