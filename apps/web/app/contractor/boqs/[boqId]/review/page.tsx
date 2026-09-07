@@ -265,7 +265,7 @@ export default function BoQReviewPage() {
       const validation = await api.validateBroadcastSafety(boq.id, Array.from(selectedItemIds));
       const isSafe = validation.safe !== undefined ? validation.safe : validation.is_safe;
       if (!isSafe) {
-        const issues = validation.corrupted_items.map((i) => `• ${i.description.slice(0, 30)}: ${i.reason}`).join("\n");
+        const issues = (validation.corrupted_items || []).map((i: any) => `• ${i.description.slice(0, 30)}: ${i.reason}`).join("\n");
         alert(`Broadcast blocked by Pre-Broadcast Safety Gate:\n\n${validation.message}\n\n${issues}`);
         return;
       }

@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: tenderpreneur-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: TENDERPRENEUR_ENVIRONMENT
+        value: production
+      - key: TENDERPRENEUR_STORAGE_TYPE
+        value: local
+      - key: TENDERPRENEUR_JWT_SECRET
+        generateValue: true
+      - key: TENDERPRENEUR_DATABASE_URL
+        value: sqlite+aiosqlite:////app/storage/tenderpreneur.db

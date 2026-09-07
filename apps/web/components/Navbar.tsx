@@ -17,6 +17,12 @@ export default function Navbar() {
   const [currentSession, setCurrentSession] = useState<AuthSession | null>(null);
   const [switching, setSwitching] = useState(false);
 
+  // Backend / Demo Mode Settings Modal
+  const [showModal, setShowModal] = useState(false);
+  const [isMockMode, setIsMockMode] = useState(true);
+  const [customUrl, setCustomUrl] = useState("");
+  const [savingUrl, setSavingUrl] = useState(false);
+
   useEffect(() => {
     // 1. Load active session from localStorage
     const saved = localStorage.getItem("tp_session");
@@ -35,6 +41,10 @@ export default function Navbar() {
         handleSwitchPersona(defaultContractor.email);
       }
     }).catch(() => {});
+
+    // 3. Initialize mock mode state and API URL
+    setIsMockMode(api.isMockMode());
+    setCustomUrl(api.getApiBase());
   }, []);
 
   const handleSwitchPersona = async (email: string) => {
@@ -64,8 +74,42 @@ export default function Navbar() {
     }
   };
 
-  const isSupplierView = pathname.startsWith("/supplier");
+  const handleSaveApiUrl = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingUrl(true);
+    try {
+      if (customUrl.trim().length > 0) {
+        api.setApiBase(customUrl.trim());
+        api.setMockMode(false);
+      } else {
+        api.setApiBase(null);
+        api.setMockMode(true);
+      }
+      setIsMockMode(api.isMockMode());
+      setShowModal(false);
+      window.location.reload();
+    } finally {
+      setSavingUrl(false);
+    }
+  };
+
+  const handleSwitchToDemoMode = () => {
+    api.setMockMode(true);
+    api.setApiBase(null);
+    setIsMockMode(true);
+    setShowModal(false);
+    window.location.reload();
+  };
+
+  const handleResetData = () => {
+    if (confirm("Reset demo data back to default South African tenders and suppliers?")) {
+      api.resetDemoData();
+      window.location.reload();
+    }
+  };
+
   const isContractorView = pathname.startsWith("/contractor");
+  const isSupplierView = pathname.startsWith("/supplier");
 
   return (
     <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-50 shadow-md">
@@ -109,8 +153,25 @@ export default function Navbar() {
           </Link>
         </nav>
 
-        {/* Global Persona Switcher */}
+        {/* Global Persona Switcher & API Status */}
         <div className="flex items-center space-x-2">
+          {/* Environment / Backend Status Badge */}
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-xs font-semibold transition"
+            title="Configure Backend API / Demo Mode"
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isMockMode ? "bg-amber-400" : "bg-emerald-400"
+              }`}
+            ></span>
+            <span className="text-[11px] text-slate-300 hidden sm:inline">
+              {isMockMode ? "⚡ In-Browser Mode" : "🟢 Live API"}
+            </span>
+          </button>
+
+          {/* Persona Switcher */}
           <div className="flex items-center space-x-2 bg-slate-800/90 border border-slate-700/80 rounded-xl px-2.5 py-1.5 text-xs">
             <span className="text-[11px] text-slate-400 font-semibold hidden sm:inline">
               Persona:
@@ -139,6 +200,92 @@ export default function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Backend / Demo Mode Configuration Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white text-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <span className="text-xl">⚙️</span>
+                <h3 className="font-bold text-slate-900 text-base">Backend &amp; Demo Settings</h3>
+              </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-lg"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div
+                className={`p-3 rounded-xl border ${
+                  isMockMode
+                    ? "bg-amber-50 border-amber-200 text-amber-900"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-900"
+                }`}
+              >
+                <div className="font-bold">
+                  {isMockMode
+                    ? "⚡ Running in In-Browser Demo Mode"
+                    : "🟢 Connected to External Backend API"}
+                </div>
+                <div className="text-[11px] mt-0.5 opacity-90">
+                  {isMockMode
+                    ? "Tenderpreneur is running 100% in your browser using local storage persistence with South African seed tenders & suppliers. No external backend required."
+                    : `Currently sending requests to: ${api.getApiBase()}`}
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveApiUrl} className="space-y-3 pt-1">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Connect External Backend API URL (Optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={customUrl}
+                    onChange={(e) => setCustomUrl(e.target.value)}
+                    placeholder="https://your-api.onrender.com/api/v1"
+                    className="w-full p-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs font-mono"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Enter the URL of your deployed FastAPI server (e.g. on Render, Railway, or Fly.io).
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSwitchToDemoMode}
+                    className="px-3 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs"
+                  >
+                    Use In-Browser Demo
+                  </button>
+
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={handleResetData}
+                      className="px-3 py-2 rounded-lg text-rose-700 bg-rose-50 hover:bg-rose-100 font-semibold text-xs"
+                    >
+                      Reset Demo Data
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingUrl}
+                      className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow"
+                    >
+                      {savingUrl ? "Saving..." : "Save & Connect"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

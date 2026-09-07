@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+import { mockStore } from "./mock-store";
 
 export interface UserDTO {
   id: string;
@@ -135,7 +135,76 @@ export interface AuditEventDTO {
   created_at: string;
 }
 
+export interface CorruptedItemDTO {
+  id: string;
+  line_item_id?: string;
+  description: string;
+  reason: string;
+  corruption_ratio: number;
+}
+
+export interface BroadcastSafetyValidationDTO {
+  is_safe: boolean;
+  safe?: boolean;
+  total_items: number;
+  valid_items_count: number;
+  corrupted_items_count: number;
+  corrupted_items: CorruptedItemDTO[];
+  message: string;
+}
+
 class ApiClient {
+  private fallbackToMock = false;
+  private customApiBase: string | null = null;
+
+  public getApiBase(): string {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("tp_custom_api_url");
+      if (stored) return stored;
+    }
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+  }
+
+  public setApiBase(url: string | null): void {
+    if (typeof window !== "undefined") {
+      if (url) {
+        localStorage.setItem("tp_custom_api_url", url);
+      } else {
+        localStorage.removeItem("tp_custom_api_url");
+      }
+    }
+    this.customApiBase = url;
+    this.fallbackToMock = false;
+  }
+
+  public isMockMode(): boolean {
+    if (this.fallbackToMock) return true;
+    if (typeof window !== "undefined") {
+      const explicit = localStorage.getItem("tp_force_mock");
+      if (explicit === "true") return true;
+      if (explicit === "false") return false;
+
+      // On GitHub Pages or static host without an explicit HTTPS/remote API URL, default to mock mode
+      const isGitHubPages = window.location.hostname.includes("github.io");
+      const apiBase = this.getApiBase();
+      if (isGitHubPages && apiBase.includes("localhost")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public setMockMode(enabled: boolean): void {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("tp_force_mock", enabled ? "true" : "false");
+    }
+    this.fallbackToMock = enabled;
+  }
+
+  public resetDemoData(): void {
+    mockStore.resetToDefaults();
+  }
+
   private getToken(): string | null {
     if (typeof window === "undefined") return null;
     return localStorage.getItem("tp_token");
@@ -151,7 +220,7 @@ class ApiClient {
       ];
       for (const email of demoEmails) {
         try {
-          const loginRes = await fetch(`${API_BASE}/auth/login`, {
+          const loginRes = await fetch(`${this.getApiBase()}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email }),
@@ -172,6 +241,11 @@ class ApiClient {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    if (this.isMockMode()) {
+      throw new Error("MOCK_MODE");
+    }
+
+    const apiBase = this.getApiBase();
     let token = await this.ensureToken();
 
     const headers: Record<string, string> = {
@@ -188,31 +262,38 @@ class ApiClient {
 
     let response: Response;
     try {
-      response = await fetch(`${API_BASE}${endpoint}`, {
+      // Use AbortController to quickly timeout if server is not reachable
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      response = await fetch(`${apiBase}${endpoint}`, {
         ...options,
         headers,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
     } catch (networkErr: any) {
-      throw new Error(
-        `Unable to reach backend API at ${API_BASE}. Please ensure the backend server is running at http://localhost:8000 (uvicorn app.main:app --reload --port 8000). Details: ${networkErr.message}`
+      console.warn(
+        `[Tenderpreneur API] Unable to reach backend at ${apiBase}. Switching to in-browser demo engine:`,
+        networkErr.message
       );
+      this.fallbackToMock = true;
+      throw new Error("MOCK_FALLBACK");
     }
 
-    // If 401 Unauthorized, token might be expired or invalidated — auto re-login once
     if (response.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("tp_token");
       token = await this.ensureToken();
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
         try {
-          response = await fetch(`${API_BASE}${endpoint}`, {
+          response = await fetch(`${apiBase}${endpoint}`, {
             ...options,
             headers,
           });
         } catch (networkErr: any) {
-          throw new Error(
-            `Unable to reach backend API at ${API_BASE}. Please ensure backend is running. Details: ${networkErr.message}`
-          );
+          this.fallbackToMock = true;
+          throw new Error("MOCK_FALLBACK");
         }
       }
     }
@@ -241,163 +322,271 @@ class ApiClient {
 
   // Auth
   async login(email: string): Promise<AuthSession> {
-    const res = await this.request<AuthSession>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
-    if (typeof window !== "undefined") {
-      localStorage.setItem("tp_token", res.access_token);
-      localStorage.setItem("tp_session", JSON.stringify(res));
+    if (this.isMockMode()) return mockStore.login(email);
+    try {
+      const res = await this.request<AuthSession>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      if (typeof window !== "undefined") {
+        localStorage.setItem("tp_token", res.access_token);
+        localStorage.setItem("tp_session", JSON.stringify(res));
+      }
+      return res;
+    } catch {
+      return mockStore.login(email);
     }
-    return res;
   }
 
   async getMe(): Promise<AuthSession> {
-    return this.request<AuthSession>("/auth/me");
+    if (this.isMockMode()) return mockStore.getMe();
+    try {
+      return await this.request<AuthSession>("/auth/me");
+    } catch {
+      return mockStore.getMe();
+    }
   }
 
   async getDemoTenants(): Promise<UserDTO[]> {
-    return this.request<UserDTO[]>("/auth/demo-tenants");
+    if (this.isMockMode()) return mockStore.getDemoTenants();
+    try {
+      return await this.request<UserDTO[]>("/auth/demo-tenants");
+    } catch {
+      return mockStore.getDemoTenants();
+    }
   }
 
   // BoQs
   async listBoQs(): Promise<BoQSummaryDTO[]> {
-    return this.request<BoQSummaryDTO[]>("/boqs");
+    if (this.isMockMode()) return mockStore.listBoQs();
+    try {
+      return await this.request<BoQSummaryDTO[]>("/boqs");
+    } catch {
+      return mockStore.listBoQs();
+    }
   }
 
   async getBoQ(id: string): Promise<BoQDetailDTO> {
-    return this.request<BoQDetailDTO>(`/boqs/${id}`);
+    if (this.isMockMode()) return mockStore.getBoQ(id);
+    try {
+      return await this.request<BoQDetailDTO>(`/boqs/${id}`);
+    } catch {
+      return mockStore.getBoQ(id);
+    }
   }
 
   async createBoQ(data: { title: string; tender_reference?: string; region: string }): Promise<BoQDetailDTO> {
-    return this.request<BoQDetailDTO>("/boqs", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
+    if (this.isMockMode()) return mockStore.createBoQ(data);
+    try {
+      return await this.request<BoQDetailDTO>("/boqs", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    } catch {
+      return mockStore.createBoQ(data);
+    }
   }
 
   async deleteBoQ(id: string): Promise<void> {
-    return this.request(`/boqs/${id}`, {
-      method: "DELETE",
-    });
+    if (this.isMockMode()) return mockStore.deleteBoQ(id);
+    try {
+      await this.request(`/boqs/${id}`, { method: "DELETE" });
+    } catch {
+      await mockStore.deleteBoQ(id);
+    }
   }
 
   async uploadBoQDocument(boqId: string, file: File): Promise<any> {
-    const formData = new FormData();
-    formData.append("file", file);
-    return this.request(`/boqs/${boqId}/documents`, {
-      method: "POST",
-      body: formData,
-    });
+    if (this.isMockMode()) return mockStore.uploadBoQDocument(boqId, file);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      return await this.request(`/boqs/${boqId}/documents`, {
+        method: "POST",
+        body: formData,
+      });
+    } catch {
+      return mockStore.uploadBoQDocument(boqId, file);
+    }
   }
 
   async parseBoQ(boqId: string, pastedText?: string): Promise<BoQDetailDTO> {
-    return this.request<BoQDetailDTO>(`/boqs/${boqId}/parse`, {
-      method: "POST",
-      body: JSON.stringify({ pasted_text: pastedText }),
-    });
+    if (this.isMockMode()) return mockStore.parseBoQ(boqId, pastedText);
+    try {
+      return await this.request<BoQDetailDTO>(`/boqs/${boqId}/parse`, {
+        method: "POST",
+        body: JSON.stringify({ pasted_text: pastedText }),
+      });
+    } catch {
+      return mockStore.parseBoQ(boqId, pastedText);
+    }
   }
 
   async addLineItem(boqId: string, item: any): Promise<LineItemDTO> {
-    return this.request<LineItemDTO>(`/boqs/${boqId}/line-items`, {
-      method: "POST",
-      body: JSON.stringify(item),
-    });
+    if (this.isMockMode()) return mockStore.addLineItem(boqId, item);
+    try {
+      return await this.request<LineItemDTO>(`/boqs/${boqId}/line-items`, {
+        method: "POST",
+        body: JSON.stringify(item),
+      });
+    } catch {
+      return mockStore.addLineItem(boqId, item);
+    }
   }
 
   async updateLineItem(boqId: string, itemId: string, item: Partial<LineItemDTO>): Promise<LineItemDTO> {
-    return this.request<LineItemDTO>(`/boqs/${boqId}/line-items/${itemId}`, {
-      method: "PATCH",
-      body: JSON.stringify(item),
-    });
+    if (this.isMockMode()) return mockStore.updateLineItem(boqId, itemId, item);
+    try {
+      return await this.request<LineItemDTO>(`/boqs/${boqId}/line-items/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify(item),
+      });
+    } catch {
+      return mockStore.updateLineItem(boqId, itemId, item);
+    }
   }
 
   async deleteLineItem(boqId: string, itemId: string): Promise<void> {
-    return this.request(`/boqs/${boqId}/line-items/${itemId}`, {
-      method: "DELETE",
-    });
+    if (this.isMockMode()) return mockStore.deleteLineItem(boqId, itemId);
+    try {
+      await this.request(`/boqs/${boqId}/line-items/${itemId}`, { method: "DELETE" });
+    } catch {
+      await mockStore.deleteLineItem(boqId, itemId);
+    }
   }
 
   async bulkDeleteLineItems(boqId: string, lineItemIds: string[]): Promise<{ deleted_count: number }> {
-    return this.request<{ deleted_count: number }>(`/boqs/${boqId}/line-items/bulk-delete`, {
-      method: "POST",
-      body: JSON.stringify({ line_item_ids: lineItemIds }),
-    });
+    if (this.isMockMode()) return mockStore.bulkDeleteLineItems(boqId, lineItemIds);
+    try {
+      return await this.request<{ deleted_count: number }>(`/boqs/${boqId}/line-items/bulk-delete`, {
+        method: "POST",
+        body: JSON.stringify({ line_item_ids: lineItemIds }),
+      });
+    } catch {
+      return mockStore.bulkDeleteLineItems(boqId, lineItemIds);
+    }
   }
 
   async restoreLineItem(boqId: string, itemId: string): Promise<LineItemDTO> {
-    return this.request<LineItemDTO>(`/boqs/${boqId}/line-items/${itemId}/restore`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
+    if (this.isMockMode()) return mockStore.restoreLineItem(boqId, itemId);
+    try {
+      return await this.request<LineItemDTO>(`/boqs/${boqId}/line-items/${itemId}/restore`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+    } catch {
+      return mockStore.restoreLineItem(boqId, itemId);
+    }
   }
 
   async getParserFeedbackSummary(): Promise<any> {
-    return this.request("/boqs/parser/feedback-summary");
+    if (this.isMockMode()) return mockStore.getParserFeedbackSummary();
+    try {
+      return await this.request("/boqs/parser/feedback-summary");
+    } catch {
+      return mockStore.getParserFeedbackSummary();
+    }
   }
 
   // Sourcing & Quotes
   async createQuoteRequest(lineItemId: string, responseDeadline: string): Promise<QuoteRequestDTO> {
-    return this.request<QuoteRequestDTO>("/quote-requests", {
-      method: "POST",
-      body: JSON.stringify({ line_item_id: lineItemId, response_deadline: responseDeadline }),
-    });
+    if (this.isMockMode()) return mockStore.createQuoteRequest(lineItemId, responseDeadline);
+    try {
+      return await this.request<QuoteRequestDTO>("/quote-requests", {
+        method: "POST",
+        body: JSON.stringify({ line_item_id: lineItemId, response_deadline: responseDeadline }),
+      });
+    } catch {
+      return mockStore.createQuoteRequest(lineItemId, responseDeadline);
+    }
   }
 
   async broadcastQuoteRequest(requestId: string): Promise<QuoteRequestDTO> {
-    return this.request<QuoteRequestDTO>(`/quote-requests/${requestId}/broadcast`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
+    if (this.isMockMode()) return mockStore.broadcastQuoteRequest(requestId);
+    try {
+      return await this.request<QuoteRequestDTO>(`/quote-requests/${requestId}/broadcast`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+    } catch {
+      return mockStore.broadcastQuoteRequest(requestId);
+    }
   }
 
-  async validateBroadcastSafety(boqId: string, lineItemIds: string[]): Promise<{
-    is_safe: boolean;
-    safe?: boolean;
-    total_items: number;
-    valid_items_count: number;
-    corrupted_items_count: number;
-    corrupted_items: Array<{ id: string; line_item_id?: string; description: string; reason: string; corruption_ratio: number }>;
-    message: string;
-  }> {
-    return this.request(`/boqs/${boqId}/validate-broadcast`, {
-      method: "POST",
-      body: JSON.stringify({ line_item_ids: lineItemIds }),
-    });
+  async validateBroadcastSafety(boqId: string, lineItemIds: string[]): Promise<BroadcastSafetyValidationDTO> {
+    if (this.isMockMode()) return mockStore.validateBroadcastSafety(boqId, lineItemIds);
+    try {
+      return await this.request<BroadcastSafetyValidationDTO>(`/boqs/${boqId}/validate-broadcast`, {
+        method: "POST",
+        body: JSON.stringify({ line_item_ids: lineItemIds }),
+      });
+    } catch {
+      return mockStore.validateBroadcastSafety(boqId, lineItemIds);
+    }
   }
 
   async getQuoteComparison(boqId: string): Promise<BoQComparisonDTO> {
-    return this.request<BoQComparisonDTO>(`/boqs/${boqId}/quote-comparison`);
+    if (this.isMockMode()) return mockStore.getQuoteComparison(boqId);
+    try {
+      return await this.request<BoQComparisonDTO>(`/boqs/${boqId}/quote-comparison`);
+    } catch {
+      return mockStore.getQuoteComparison(boqId);
+    }
   }
 
   async selectQuote(requestId: string, quoteId: string): Promise<LineItemComparisonDTO> {
-    return this.request<LineItemComparisonDTO>(`/quote-requests/${requestId}/select`, {
-      method: "POST",
-      body: JSON.stringify({ quote_id: quoteId }),
-    });
+    if (this.isMockMode()) return mockStore.selectQuote(requestId, quoteId);
+    try {
+      return await this.request<LineItemComparisonDTO>(`/quote-requests/${requestId}/select`, {
+        method: "POST",
+        body: JSON.stringify({ quote_id: quoteId }),
+      });
+    } catch {
+      return mockStore.selectQuote(requestId, quoteId);
+    }
   }
 
   async autoSelectBestQuotes(boqId: string): Promise<{ selected_count: number; total_priced_minor: number; message: string }> {
-    return this.request<{ selected_count: number; total_priced_minor: number; message: string }>(`/boqs/${boqId}/auto-select-best-quotes`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
+    if (this.isMockMode()) return mockStore.autoSelectBestQuotes(boqId);
+    try {
+      return await this.request<{ selected_count: number; total_priced_minor: number; message: string }>(
+        `/boqs/${boqId}/auto-select-best-quotes`,
+        { method: "POST", body: JSON.stringify({}) }
+      );
+    } catch {
+      return mockStore.autoSelectBestQuotes(boqId);
+    }
   }
 
   async overridePrice(boqId: string, itemId: string, priceMinor: number, reason: string): Promise<LineItemComparisonDTO> {
-    return this.request<LineItemComparisonDTO>(`/boqs/${boqId}/line-items/${itemId}/price-override`, {
-      method: "POST",
-      body: JSON.stringify({ price_minor: priceMinor, reason, currency: "ZAR" }),
-    });
+    if (this.isMockMode()) return mockStore.overridePrice(boqId, itemId, priceMinor, reason);
+    try {
+      return await this.request<LineItemComparisonDTO>(`/boqs/${boqId}/line-items/${itemId}/price-override`, {
+        method: "POST",
+        body: JSON.stringify({ price_minor: priceMinor, reason, currency: "ZAR" }),
+      });
+    } catch {
+      return mockStore.overridePrice(boqId, itemId, priceMinor, reason);
+    }
   }
 
   // Supplier Portal
   async getSupplierQuoteRequests(): Promise<QuoteRequestDTO[]> {
-    return this.request<QuoteRequestDTO[]>("/suppliers/quote-requests");
+    if (this.isMockMode()) return mockStore.getSupplierQuoteRequests();
+    try {
+      return await this.request<QuoteRequestDTO[]>("/suppliers/quote-requests");
+    } catch {
+      return mockStore.getSupplierQuoteRequests();
+    }
   }
 
   async getSupplierQuoteRequest(requestId: string): Promise<QuoteRequestDTO> {
-    return this.request<QuoteRequestDTO>(`/suppliers/quote-requests/${requestId}`);
+    if (this.isMockMode()) return mockStore.getSupplierQuoteRequest(requestId);
+    try {
+      return await this.request<QuoteRequestDTO>(`/suppliers/quote-requests/${requestId}`);
+    } catch {
+      return mockStore.getSupplierQuoteRequest(requestId);
+    }
   }
 
   async submitSupplierQuote(
@@ -406,42 +595,67 @@ class ApiClient {
     leadTimeDays?: number,
     notes?: string
   ): Promise<QuoteDTO> {
-    return this.request<QuoteDTO>(`/quote-requests/${requestId}/quotes`, {
-      method: "POST",
-      body: JSON.stringify({
-        unit_price_minor: unitPriceMinor,
-        lead_time_days: leadTimeDays,
-        notes,
-        currency: "ZAR",
-      }),
-    });
+    if (this.isMockMode()) return mockStore.submitSupplierQuote(requestId, unitPriceMinor, leadTimeDays, notes);
+    try {
+      return await this.request<QuoteDTO>(`/quote-requests/${requestId}/quotes`, {
+        method: "POST",
+        body: JSON.stringify({
+          unit_price_minor: unitPriceMinor,
+          lead_time_days: leadTimeDays,
+          notes,
+          currency: "ZAR",
+        }),
+      });
+    } catch {
+      return mockStore.submitSupplierQuote(requestId, unitPriceMinor, leadTimeDays, notes);
+    }
   }
 
   // Exports & Audit
   async getAuditTrail(boqId: string): Promise<AuditEventDTO[]> {
-    return this.request<AuditEventDTO[]>(`/boqs/${boqId}/audit`);
+    if (this.isMockMode()) return mockStore.getAuditTrail(boqId);
+    try {
+      return await this.request<AuditEventDTO[]>(`/boqs/${boqId}/audit`);
+    } catch {
+      return mockStore.getAuditTrail(boqId);
+    }
   }
 
   async createExport(boqId: string, format: "xlsx" | "pdf"): Promise<{ download_url: string; filename: string }> {
-    return this.request<{ download_url: string; filename: string }>(`/boqs/${boqId}/exports`, {
-      method: "POST",
-      body: JSON.stringify({ format }),
-    });
+    if (this.isMockMode()) return mockStore.createExport(boqId, format);
+    try {
+      return await this.request<{ download_url: string; filename: string }>(`/boqs/${boqId}/exports`, {
+        method: "POST",
+        body: JSON.stringify({ format }),
+      });
+    } catch {
+      return mockStore.createExport(boqId, format);
+    }
   }
 
   // Simulation
   async simulateBoqQuotes(boqId: string): Promise<{ total_quotes: number; message: string }> {
-    return this.request<{ total_quotes: number; message: string }>(`/boqs/${boqId}/simulate-quotes`, {
-      method: "POST",
-    });
+    if (this.isMockMode()) return mockStore.simulateBoqQuotes(boqId);
+    try {
+      return await this.request<{ total_quotes: number; message: string }>(`/boqs/${boqId}/simulate-quotes`, {
+        method: "POST",
+      });
+    } catch {
+      return mockStore.simulateBoqQuotes(boqId);
+    }
   }
 
   async simulateRequestQuotes(requestId: string): Promise<{ quotes_count: number; message: string }> {
-    return this.request<{ quotes_count: number; message: string }>(`/quote-requests/${requestId}/simulate-responses`, {
-      method: "POST",
-    });
+    if (this.isMockMode()) return mockStore.simulateRequestQuotes(requestId);
+    try {
+      return await this.request<{ quotes_count: number; message: string }>(
+        `/quote-requests/${requestId}/simulate-responses`,
+        { method: "POST" }
+      );
+    } catch {
+      return mockStore.simulateRequestQuotes(requestId);
+    }
   }
 }
 
 export const api = new ApiClient();
-
