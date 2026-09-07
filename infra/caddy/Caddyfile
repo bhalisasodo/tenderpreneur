@@ -1,0 +1,43 @@
+# Tenderpreneur Production Reverse Proxy Configuration
+# Caddy automatically provisions and renews SSL/TLS certificates via Let's Encrypt / ZeroSSL
+
+{$DOMAIN_NAME:localhost} {
+    # Security Headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+
+    # Compress responses
+    encode gzip zstd
+
+    # Route API requests to FastAPI backend
+    handle /api/* {
+        reverse_proxy api:8000
+    }
+
+    # Route API documentation and health probes
+    handle /docs* {
+        reverse_proxy api:8000
+    }
+    handle /openapi.json {
+        reverse_proxy api:8000
+    }
+    handle /health {
+        reverse_proxy api:8000
+    }
+
+    # Route all other traffic to Next.js Web App
+    handle {
+        reverse_proxy web:3000
+    }
+
+    # Structured logging
+    log {
+        output stdout
+        format console
+    }
+}

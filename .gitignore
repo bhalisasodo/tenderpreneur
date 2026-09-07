@@ -1,0 +1,38 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+
+
+# IDE
+.vscode/
+.idea/
+
+# Local data
+*.sqlite
+*.db
+storage/
+test_storage/
+tmp/
+*.log
+

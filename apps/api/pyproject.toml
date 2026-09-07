@@ -1,0 +1,40 @@
+[project]
+name = "tenderpreneur-api"
+version = "0.1.0"
+description = "Tenderpreneur API - AI-native BoQ Pricing and Supplier Quote Marketplace"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.0",
+  "pydantic-settings>=2.4.0",
+  "pydantic>=2.8.0",
+  "sqlalchemy>=2.0.30",
+  "aiosqlite>=0.20.0",
+  "alembic>=1.13.0",
+  "python-multipart>=0.0.9",
+  "pyjwt>=2.9.0",
+  "pypdf>=4.3.0",
+  "openpyxl>=3.1.5",
+  "reportlab>=4.2.0",
+]
+
+[project.optional-dependencies]
+postgres = [
+  "psycopg[binary]>=3.2.0",
+]
+dev = [
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "httpx>=0.27.0",
+  "ruff>=0.6.0",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = [".venv", "storage", "test_storage", ".pytest_cache", "alembic"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["."]
