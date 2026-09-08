@@ -14,10 +14,10 @@ def test_production_jwt_secret_enforcement():
         Settings(
             environment="production",
             debug=False,
-            jwt_secret="tenderpreneur-insecure-dev-secret-key-replace-in-production",
+            jwt_secret="boqpro-insecure-dev-secret-key-replace-in-production",
         )
     assert "Production security violation" in str(exc_info.value)
-    assert "TENDERPRENEUR_JWT_SECRET" in str(exc_info.value)
+    assert "BOQPRO_JWT_SECRET" in str(exc_info.value)
 
 
 def test_production_debug_mode_disabled():
@@ -29,7 +29,7 @@ def test_production_debug_mode_disabled():
             jwt_secret="a_super_strong_cryptographic_secret_key_of_length_greater_than_32",
         )
     assert "Production security violation" in str(exc_info.value)
-    assert "TENDERPRENEUR_DEBUG" in str(exc_info.value)
+    assert "BOQPRO_DEBUG" in str(exc_info.value)
 
 
 def test_production_valid_configuration_passes():
@@ -46,10 +46,10 @@ def test_production_valid_configuration_passes():
 def test_cors_origins_parsing_from_string():
     """Verify CORS origins string is automatically parsed into a list."""
     s = Settings(
-        cors_origins="https://app.tenderpreneur.co.za, https://supplier.tenderpreneur.co.za"
+        cors_origins="https://app.boqpro.co.za, https://supplier.boqpro.co.za"
     )
-    assert "https://app.tenderpreneur.co.za" in s.cors_origins
-    assert "https://supplier.tenderpreneur.co.za" in s.cors_origins
+    assert "https://app.boqpro.co.za" in s.cors_origins
+    assert "https://supplier.boqpro.co.za" in s.cors_origins
 
 
 def test_auth_rate_limiter_exceeded():
@@ -85,7 +85,7 @@ async def test_email_notification_provider_dry_run():
         quantity=50.0,
         unit="m3",
         response_deadline_iso="2026-09-10T12:00:00Z",
-        submission_link="https://app.tenderpreneur.co.za/quotes/submit?token=abc",
+        submission_link="https://app.boqpro.co.za/quotes/submit?token=abc",
     )
     assert success is True
 

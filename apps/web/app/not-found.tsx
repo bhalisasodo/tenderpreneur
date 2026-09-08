@@ -13,9 +13,9 @@ export default function NotFound() {
       <div className="pt-2">
         <Link
           href="/"
-          className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow transition"
+          className="inline-flex items-center px-4 py-2 rounded-lg bg-[#12233F] hover:bg-[#1a335a] text-white font-semibold text-xs shadow transition"
         >
-          &larr; Return to Tenderpreneur Home
+          &larr; Return to BoQPro Home
         </Link>
       </div>
     </div>

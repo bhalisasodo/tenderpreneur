@@ -1,4 +1,4 @@
-# Tenderpreneur Security Baseline
+# BoQPro Security Baseline
 
 ## Multi-tenancy
 

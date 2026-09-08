@@ -5,7 +5,7 @@ from email.message import EmailMessage
 from typing import Optional
 from app.core.config import settings
 
-logger = logging.getLogger("tenderpreneur.notifications.email")
+logger = logging.getLogger("boqpro.notifications.email")
 
 
 class EmailNotificationProvider:
@@ -25,7 +25,7 @@ class EmailNotificationProvider:
         self.username = username or settings.smtp_username
         self.password = password or settings.smtp_password
         self.use_tls = use_tls if use_tls is not None else settings.smtp_use_tls
-        self.from_email = from_email or settings.smtp_from_email or "noreply@tenderpreneur.co.za"
+        self.from_email = from_email or settings.smtp_from_email or "noreply@boqpro.co.za"
 
     def _send_sync(self, msg: EmailMessage) -> bool:
         if not self.host:
@@ -67,7 +67,7 @@ class EmailNotificationProvider:
 
         body = f"""Dear {supplier_name},
 
-You have received an urgent Request for Quotation (RFQ) via Tenderpreneur.
+You have received an urgent Request for Quotation (RFQ) via BoQPro.
 
 Project: {boq_title}
 Item: {quantity} {unit} of {line_item_description}
@@ -77,7 +77,7 @@ To review item specifications and submit your tender price online, please use th
 {submission_link}
 
 Regards,
-The Tenderpreneur Procurement Team
+The BoQPro Procurement Team
 """
         msg.set_content(body)
 

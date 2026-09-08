@@ -1,4 +1,4 @@
-# TENDERPRENEUR — PRODUCT VALIDATION & MVP DISCIPLINE
+# BOQPRO — PRODUCT VALIDATION & MVP DISCIPLINE
 
 Now that you have completed the initial review of the repository and the ANTIGRAVITY_START_PROMPT.md instructions, I want to establish an important product-development constraint before you begin substantial implementation.
 

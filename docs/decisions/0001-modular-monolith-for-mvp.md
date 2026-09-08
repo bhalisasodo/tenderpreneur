@@ -2,7 +2,7 @@
 
 ## Decision
 
-Implement Tenderpreneur as a modular monolith initially.
+Implement BoQPro as a modular monolith initially.
 
 The backend should have explicit domain modules for BoQ parsing, suppliers, matching, quotes, exports, notifications, authentication, files and audit.
 

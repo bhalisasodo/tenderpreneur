@@ -1,4 +1,4 @@
-# Tenderpreneur — Agent Instructions
+# BoQPro — Agent Instructions
 
 You are the engineering agent responsible for turning this scaffold into a production-quality MVP.
 
@@ -12,14 +12,15 @@ Before making architectural or product decisions, read:
 - `docs/api-contract.md`
 - `docs/security.md`
 - `docs/source/concept-c-build-brief.md`
+- `BoQPro-brand-assets/BoQPro-brand-brief.md`
 
 The source brief is authoritative for product scope. Do not silently add Phase 2 features.
 
 ## Product naming
 
-The product is **Tenderpreneur**.
+The product is **BoQPro**.
 
-"Concept C" is a historical/source-document label only. Do not use it in the application UI, routes, database names, or public-facing copy.
+"Concept C" and "Tenderpreneur" are historical/source-document labels only. Do not use them in the application UI, routes, database names, or public-facing copy.
 
 ## Engineering principles
 

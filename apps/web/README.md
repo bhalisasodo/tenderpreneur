@@ -1,4 +1,4 @@
-# Tenderpreneur Web
+# BoQPro Web
 
 Next.js + TypeScript frontend scaffold.
 

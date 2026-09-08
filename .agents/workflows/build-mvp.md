@@ -1,5 +1,5 @@
 ---
-description: Build Tenderpreneur MVP incrementally
+description: Build BoQPro MVP incrementally
 ---
 
 # Build MVP

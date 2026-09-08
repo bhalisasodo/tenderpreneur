@@ -6,7 +6,7 @@ External LLM, notification, object-storage and export dependencies must be acces
 
 ## Why
 
-Tenderpreneur should not make the core domain dependent on one vendor.
+BoQPro should not make the core domain dependent on one vendor.
 
 This is especially important for LLM parsing, where provider behavior and pricing can change.
 

@@ -2,7 +2,7 @@ import logging
 from typing import Dict, List
 from app.integrations.notifications.base import NotificationProvider
 
-logger = logging.getLogger("tenderpreneur.notifications")
+logger = logging.getLogger("boqpro.notifications")
 
 
 class ConsoleNotificationProvider:

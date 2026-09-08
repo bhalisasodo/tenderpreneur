@@ -5,6 +5,11 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Set test environment
+os.environ["BOQPRO_ENVIRONMENT"] = "testing"
+os.environ["BOQPRO_DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["BOQPRO_STORAGE_TYPE"] = "local"
+os.environ["BOQPRO_LOCAL_STORAGE_PATH"] = "./test_storage"
+# Retain legacy variables for fallback testing
 os.environ["TENDERPRENEUR_ENVIRONMENT"] = "testing"
 os.environ["TENDERPRENEUR_DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["TENDERPRENEUR_STORAGE_TYPE"] = "local"
@@ -29,7 +34,7 @@ from app.core.security import create_access_token
 from app.main import app
 
 test_engine = create_async_engine(
-    "sqlite+aiosqlite:///./test_tenderpreneur.db",
+    "sqlite+aiosqlite:///./test_boqpro.db",
     connect_args={"check_same_thread": False},
     future=True,
 )

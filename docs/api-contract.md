@@ -1,4 +1,4 @@
-# Tenderpreneur API Contract
+# BoQPro API Contract
 
 Base path: `/api/v1`
 

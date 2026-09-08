@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: tenderpreneur-api
+    name: boqpro-api
     runtime: docker
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: ./apps/api
@@ -10,11 +10,11 @@ services:
     envVars:
       - key: PORT
         value: 8000
-      - key: TENDERPRENEUR_ENVIRONMENT
+      - key: BOQPRO_ENVIRONMENT
         value: production
-      - key: TENDERPRENEUR_STORAGE_TYPE
+      - key: BOQPRO_STORAGE_TYPE
         value: local
-      - key: TENDERPRENEUR_JWT_SECRET
+      - key: BOQPRO_JWT_SECRET
         generateValue: true
-      - key: TENDERPRENEUR_DATABASE_URL
-        value: sqlite+aiosqlite:////app/storage/tenderpreneur.db
+      - key: BOQPRO_DATABASE_URL
+        value: sqlite+aiosqlite:////app/storage/boqpro.db

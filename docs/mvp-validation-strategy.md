@@ -1,13 +1,13 @@
-# Tenderpreneur — MVP Validation Strategy
+# BoQPro — MVP Validation Strategy
 
 **Document Status:** Approved Product Strategy & MVP Constraints  
-**Source Baseline:** `docs/product-validation-principles.md` & `docs/source/concept-c-build-brief.md`  
+**Source Baseline:** `docs/product-validation-principles.md` & `BoQPro-brand-assets/BoQPro-brand-brief.md`  
 
 ---
 
 ## 1. Core Product Hypothesis
 
-The foundational hypothesis of Tenderpreneur is:
+The foundational hypothesis of BoQPro is:
 
 > **If tender contractors are provided an AI-assisted tool to rapidly parse raw BoQs and request structured quotes from regional suppliers with visible deadlines, they will achieve a defensible, submission-ready priced BoQ significantly faster than manual phone/email outreach, creating atomic transaction records that power long-term procurement pricing intelligence.**
 

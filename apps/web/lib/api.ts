@@ -274,7 +274,7 @@ class ApiClient {
       clearTimeout(timeoutId);
     } catch (networkErr: any) {
       console.warn(
-        `[Tenderpreneur API] Unable to reach backend at ${apiBase}. Switching to in-browser demo engine:`,
+        `[BoQPro API] Unable to reach backend at ${apiBase}. Switching to in-browser demo engine:`,
         networkErr.message
       );
       this.fallbackToMock = true;

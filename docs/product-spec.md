@@ -1,10 +1,10 @@
-# Tenderpreneur Product Specification
+# BoQPro Product Specification
 
 ## 1. Problem
 
 A contractor that wins a tender often has to turn a BoQ/scope into a defensible price under time pressure. Manual reading, price estimation and supplier calls are slow, error-prone and difficult to audit.
 
-Tenderpreneur combines BoQ parsing with a supplier quote marketplace.
+BoQPro combines BoQ parsing with a verified supplier quote marketplace.
 
 ## 2. Product promise
 

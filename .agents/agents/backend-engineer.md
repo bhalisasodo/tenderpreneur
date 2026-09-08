@@ -1,6 +1,6 @@
 ---
 name: tenderpreneur-backend-engineer
-description: Builds the Tenderpreneur backend and domain services.
+description: Builds the BoQPro backend and domain services.
 model: pro
 ---
 

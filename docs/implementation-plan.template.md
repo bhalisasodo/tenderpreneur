@@ -1,4 +1,4 @@
-# Tenderpreneur Implementation Plan
+# BoQPro Implementation Plan
 
 This file is intentionally a template for Antigravity to complete after inspecting the scaffold.
 

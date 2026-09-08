@@ -1,8 +1,10 @@
-# Tenderpreneur
+# BoQPro
 
-AI-native Bill of Quantities (BoQ) pricing and verified supplier-quote marketplace for South African tender contractors.
+**Price it right. Win it clean.**
 
-> Built from the Tenderpreneur / Concept C source brief dated 24 August 2026.
+AI-native Bill of Quantities (BoQ) bid-pricing and verified supplier-quote infrastructure for South African tender contractors.
+
+> Built from the BoQPro brand brief (`BoQPro-brand-assets/BoQPro-brand-brief.md`) and original concept specification.
 
 ---
 
@@ -74,7 +76,7 @@ For deploying to a cloud VPS (Hetzner, AWS, DigitalOcean, Azure) with automated 
 ## Architecture & Codebase Map
 
 ```text
-tenderpreneur/
+boqpro/
 ├── apps/
 │   ├── api/                      # FastAPI Python Backend
 │   │   ├── app/

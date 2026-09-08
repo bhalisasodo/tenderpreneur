@@ -1,4 +1,4 @@
-# Tenderpreneur Production Reverse Proxy Configuration
+# BoQPro Production Reverse Proxy Configuration
 # Caddy automatically provisions and renews SSL/TLS certificates via Let's Encrypt / ZeroSSL
 
 {$DOMAIN_NAME:localhost} {

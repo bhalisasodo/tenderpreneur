@@ -1,4 +1,4 @@
-# Tenderpreneur API
+# BoQPro API
 
 FastAPI backend scaffold.
 

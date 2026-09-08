@@ -1,9 +1,9 @@
-# Tenderpreneur MVP Implementation Plan
+# BoQPro MVP Implementation Plan
 
 **Date:** 2026-09-01  
 **Status:** Active Implementation Blueprint (Milestones 1–4 Built & Verified)  
-**Product:** Tenderpreneur (AI-native BoQ Pricing & Supplier-Quote Marketplace)  
-**Authoritative Brief:** `docs/source/concept-c-build-brief.md`, `docs/product-spec.md`, & `docs/mvp-validation-strategy.md`
+**Product:** BoQPro (AI-native BoQ Pricing & Supplier-Quote Marketplace)  
+**Authoritative Brief:** `BoQPro-brand-assets/BoQPro-brand-brief.md`, `docs/product-spec.md`, & `docs/mvp-validation-strategy.md`
 
 ---
 

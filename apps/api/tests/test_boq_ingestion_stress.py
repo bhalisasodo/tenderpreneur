@@ -1,6 +1,6 @@
 """
-Tenderpreneur BoQ Ingestion Stress Testing Suite
-================================================
+BoQPro BoQ Ingestion Stress Testing Suite
+=========================================
 Exhaustive stress tests for real-world South African tender document parsing:
 1. 100-Item Municipal Mega-Schedule throughput & category distribution
 2. Dirty Excel workbook with merged headers, subtotals, and formatted comma strings

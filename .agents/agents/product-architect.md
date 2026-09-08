@@ -1,6 +1,6 @@
 ---
 name: tenderpreneur-product-architect
-description: Validates Tenderpreneur scope, architecture and implementation plans.
+description: Validates BoQPro scope, architecture and implementation plans.
 model: pro
 ---
 

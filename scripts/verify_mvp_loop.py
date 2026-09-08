@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Tenderpreneur MVP Loop Verification Script
-==========================================
+BoQPro MVP Loop Verification Script
+===================================
 Demonstrates and validates the complete end-to-end user journey as defined in
-ANTIGRAVITY_START_PROMPT.md, concept-c-build-brief.md, and docs/mvp-validation-strategy.md:
+ANTIGRAVITY_START_PROMPT.md and docs/mvp-validation-strategy.md:
 
 Contractor -> upload BoQ -> parse -> correct line item -> select items to source ->
 match suppliers -> broadcast request -> suppliers submit quotes -> contractor compares
@@ -24,7 +24,7 @@ import subprocess
 def run_standalone_test():
     """Runs the verified full procurement loop test suite."""
     print("=" * 60)
-    print("       TENDERPRENEUR MVP PROCUREMENT LOOP VERIFICATION")
+    print("          BOQPRO MVP PROCUREMENT LOOP VERIFICATION")
     print("  Contractor BoQ -> Sourcing -> Quotes -> Override -> Export")
     print("=" * 60)
 
@@ -40,12 +40,12 @@ def run_standalone_test():
         python_exe = os.path.join(api_dir, ".venv", "bin", "python")
 
     cmd = [
-        pytest_exe if os.path.exists(pytest_exe) else python_exe,
+        python_exe,
+        "-m",
+        "pytest",
         "-v",
         "tests/test_mvp_verification_loop.py",
     ]
-    if not os.path.exists(pytest_exe):
-        cmd = [python_exe, "-m", "pytest", "-v", "tests/test_mvp_verification_loop.py"]
 
     print(f"\n[INFO] Executing verification suite in {api_dir}:")
     print(f"[INFO] Command: {' '.join(cmd)}\n")
@@ -54,17 +54,17 @@ def run_standalone_test():
     if result.returncode == 0:
         print("\n" + "=" * 60)
         print("  [SUCCESS] ALL 13 MVP VALIDATION STEPS VERIFIED & PASSED!")
-        print("  The full Tenderpreneur procurement loop is confirmed operational.")
+        print("  The full BoQPro procurement loop is confirmed operational.")
         print("=" * 60)
     else:
         print("\n" + "=" * 60)
-        print("  [FAILURE] Verification encountered failures.")
+        print("  [FAILED] Verification loop encountered failures.")
         print("=" * 60)
-    sys.exit(result.returncode)
+    return result.returncode
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Verify Tenderpreneur MVP procurement loop")
+    parser = argparse.ArgumentParser(description="Verify BoQPro MVP procurement loop")
     parser.add_argument("--url", help="Base URL of live API (e.g. http://localhost:8000)")
     args = parser.parse_args()
 

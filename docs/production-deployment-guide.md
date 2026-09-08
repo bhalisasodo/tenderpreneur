@@ -1,6 +1,6 @@
-# Tenderpreneur MVP — Production Deployment Guide
+# BoQPro MVP — Production Deployment Guide
 
-This guide describes the complete procedure for deploying **Tenderpreneur** to a production cloud server (VPS) running Ubuntu 24.04 LTS with automated HTTPS, PostgreSQL 17, MinIO object storage, FastAPI backend, and Next.js 15 frontend.
+This guide describes the complete procedure for deploying **BoQPro** to a production cloud server (VPS) running Ubuntu 24.04 LTS with automated HTTPS, PostgreSQL 17, MinIO object storage, FastAPI backend, and Next.js 15 frontend.
 
 ---
 
@@ -28,8 +28,8 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install -y curl wget git ufw htop
 ```
 
-### 2.2. Configure UFW Firewall
-Allow SSH, HTTP, and HTTPS only:
+### 2.2. Configure Firewall (UFW)
+Allow SSH, HTTP, and HTTPS:
 ```bash
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
@@ -39,36 +39,37 @@ sudo ufw allow 443/tcp
 sudo ufw enable
 ```
 
-### 2.3. Install Docker Engine & Docker Compose
+### 2.3. Install Docker & Docker Compose
 ```bash
-# Add Docker's official GPG key
+# Add Docker's official GPG key:
+sudo apt update
+sudo apt install -y ca-certificates curl
 sudo install -m 0755 -d /etc/apt/keyrings
 sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 sudo chmod a+r /etc/apt/keyrings/docker.asc
 
-# Add the repository to Apt sources
+# Add the repository to Apt sources:
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
   $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
 sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# Allow non-root user to run docker
-sudo usermod -aG docker $USER
-newgrp docker
+# Enable and start Docker:
+sudo systemctl enable docker
+sudo systemctl start docker
 ```
 
 ---
 
 ## 3. DNS Configuration
 
-Point your domain name records to the server's public IPv4 address:
+Point your domain A records to your server public IP address:
 
-| Type | Host | Value | Purpose |
+| Record Type | Hostname | Value | Purpose |
 |---|---|---|---|
-| **A** | `app` | `YOUR_SERVER_PUBLIC_IP` | Main Web & API domain (`app.tenderpreneur.co.za`) |
+| **A** | `app` | `YOUR_SERVER_PUBLIC_IP` | Main Web & API domain (`app.boqpro.co.za`) |
 | **A** | `@` (root) | `YOUR_SERVER_PUBLIC_IP` | Optional root domain |
 
 *Wait 5–10 minutes for DNS propagation before running Caddy, as Caddy validates domain ownership with Let's Encrypt via HTTP-01 challenge.*
@@ -79,8 +80,8 @@ Point your domain name records to the server's public IPv4 address:
 
 ### 4.1. Clone Repository
 ```bash
-git clone https://github.com/your-org/tenderpreneur.git /opt/tenderpreneur
-cd /opt/tenderpreneur/infra/docker
+git clone https://github.com/your-org/boqpro.git /opt/boqpro
+cd /opt/boqpro/infra/docker
 ```
 
 ### 4.2. Configure Production Environment
@@ -101,12 +102,12 @@ openssl rand -base64 24
 ```
 
 Edit `.env.production` using `nano .env.production`:
-- Set `DOMAIN_NAME=app.tenderpreneur.co.za`
-- Set `TENDERPRENEUR_JWT_SECRET=<your-openssl-generated-hex>`
+- Set `DOMAIN_NAME=app.boqpro.co.za`
+- Set `BOQPRO_JWT_SECRET=<your-openssl-generated-hex>`
 - Set `POSTGRES_PASSWORD=<your-db-password>`
 - Set `MINIO_ROOT_PASSWORD=<your-minio-password>`
-- Set `TENDERPRENEUR_GEMINI_API_KEY=<your-google-gemini-api-key>`
-- Set `TENDERPRENEUR_SMTP_PASSWORD=<your-sendgrid-or-smtp-key>`
+- Set `BOQPRO_GEMINI_API_KEY=<your-google-gemini-api-key>`
+- Set `BOQPRO_SMTP_PASSWORD=<your-sendgrid-or-smtp-key>`
 
 ### 4.3. Run Automated Deployment
 Make the deployment script executable and run it:
@@ -149,20 +150,20 @@ docker compose exec api python -m app.seed
 ## 6. Backup & Disaster Recovery Runbook
 
 ### 6.1. Automated Daily PostgreSQL Database Backup
-Create `/opt/tenderpreneur/scripts/backup-db.sh`:
+Create `/opt/boqpro/scripts/backup-db.sh`:
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-BACKUP_DIR="/var/backups/tenderpreneur"
+BACKUP_DIR="/var/backups/boqpro"
 mkdir -p "$BACKUP_DIR"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-docker compose -f /opt/tenderpreneur/infra/docker/docker-compose.yml exec -T postgres pg_dump -U tenderpreneur tenderpreneur | gzip > "$BACKUP_DIR/db_$TIMESTAMP.sql.gz"
+docker compose -f /opt/boqpro/infra/docker/docker-compose.yml exec -T postgres pg_dump -U boqpro boqpro | gzip > "$BACKUP_DIR/db_$TIMESTAMP.sql.gz"
 find "$BACKUP_DIR" -type f -name "*.sql.gz" -mtime +14 -delete
 ```
 Schedule via root cron (`sudo crontab -e`):
 ```cron
-0 2 * * * /opt/tenderpreneur/scripts/backup-db.sh >> /var/log/tenderpreneur-backup.log 2>&1
+0 2 * * * /opt/boqpro/scripts/backup-db.sh >> /var/log/boqpro-backup.log 2>&1
 ```
 
 ### 6.2. Document Storage Disaster Recovery (MinIO)
-MinIO stores raw uploaded BoQ schedules, spreadsheets, and generated PDF/Excel audit exports in the `tenderpreneur_minio` Docker volume. For offsite disaster recovery, sync `/var/lib/docker/volumes/tenderpreneur_minio/_data` to AWS S3 or Backblaze B2 using `rclone`.
+MinIO stores raw uploaded BoQ schedules, spreadsheets, and generated PDF/Excel audit exports in the `boqpro_minio` Docker volume. For offsite disaster recovery, sync `/var/lib/docker/volumes/boqpro_minio/_data` to AWS S3 or Backblaze B2 using `rclone`.

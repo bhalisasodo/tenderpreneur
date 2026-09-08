@@ -1,6 +1,6 @@
 ---
 name: tenderpreneur-qa-engineer
-description: Validates Tenderpreneur functionality, security and critical user journeys.
+description: Validates BoQPro functionality, security and critical user journeys.
 model: pro
 ---
 

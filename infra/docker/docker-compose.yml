@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: tenderpreneur
-      POSTGRES_USER: tenderpreneur
+      POSTGRES_DB: boqpro
+      POSTGRES_USER: boqpro
       POSTGRES_PASSWORD: devpassword
     ports:
       - "5432:5432"
     volumes:
-      - tenderpreneur_postgres:/var/lib/postgresql/data
+      - boqpro_postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tenderpreneur -d tenderpreneur"]
+      test: ["CMD-SHELL", "pg_isready -U boqpro -d boqpro"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -19,28 +19,28 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: tenderpreneur
+      MINIO_ROOT_USER: boqpro
       MINIO_ROOT_PASSWORD: change-me-local-only
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - tenderpreneur_minio:/data
+      - boqpro_minio:/data
 
   api:
     build:
       context: ../../apps/api
       dockerfile: Dockerfile
     environment:
-      TENDERPRENEUR_DATABASE_URL: postgresql+psycopg://tenderpreneur:devpassword@postgres:5432/tenderpreneur
-      TENDERPRENEUR_ENVIRONMENT: production
-      TENDERPRENEUR_DEBUG: "false"
-      TENDERPRENEUR_STORAGE_TYPE: local
-      TENDERPRENEUR_JWT_SECRET: dev-secret-key-change-in-production-must-be-32-chars-long
+      BOQPRO_DATABASE_URL: postgresql+psycopg://boqpro:devpassword@postgres:5432/boqpro
+      BOQPRO_ENVIRONMENT: production
+      BOQPRO_DEBUG: "false"
+      BOQPRO_STORAGE_TYPE: local
+      BOQPRO_JWT_SECRET: dev-secret-key-change-in-production-must-be-32-chars-long
     ports:
       - "8000:8000"
     volumes:
-      - tenderpreneur_storage:/app/storage
+      - boqpro_storage:/app/storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,15 +68,15 @@ services:
       DOMAIN_NAME: ${DOMAIN_NAME:-localhost}
     volumes:
       - ../caddy/Caddyfile:/etc/caddy/Caddyfile
-      - tenderpreneur_caddy_data:/data
-      - tenderpreneur_caddy_config:/config
+      - boqpro_caddy_data:/data
+      - boqpro_caddy_config:/config
     depends_on:
       - web
       - api
 
 volumes:
-  tenderpreneur_postgres:
-  tenderpreneur_minio:
-  tenderpreneur_storage:
-  tenderpreneur_caddy_data:
-  tenderpreneur_caddy_config:
+  boqpro_postgres:
+  boqpro_minio:
+  boqpro_storage:
+  boqpro_caddy_data:
+  boqpro_caddy_config:

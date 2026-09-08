@@ -1,7 +1,7 @@
 [project]
-name = "tenderpreneur-api"
+name = "boqpro-api"
 version = "0.1.0"
-description = "Tenderpreneur API - AI-native BoQ Pricing and Supplier Quote Marketplace"
+description = "BoQPro API - Bid-Pricing and Verified Supplier-Quote Infrastructure"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115.0",

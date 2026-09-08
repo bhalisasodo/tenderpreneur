@@ -1,6 +1,6 @@
 """
-Tenderpreneur MVP Procurement Loop Test
-======================================
+BoQPro MVP Procurement Loop Test
+=================================
 Automated end-to-end acceptance test for the complete MVP procurement loop:
 1. Health Check
 2. Contractor Persona Authentication (Sipho Ndlovu - Amandla Civils)

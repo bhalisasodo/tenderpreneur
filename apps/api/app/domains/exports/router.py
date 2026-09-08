@@ -121,11 +121,11 @@ async def generate_boq_export(
 
     if fmt == "xlsx":
         file_bytes = await renderer.render_excel(boq_data, line_items_data, audit_events_data)
-        filename = f"Tenderpreneur_BoQ_{boq.tender_reference or boq.id[:8]}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        filename = f"BoQPro_BoQ_{boq.tender_reference or boq.id[:8]}_{datetime.now().strftime('%Y%m%d')}.xlsx"
         mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     else:
         file_bytes = await renderer.render_pdf(boq_data, line_items_data, audit_events_data)
-        filename = f"Tenderpreneur_BoQ_{boq.tender_reference or boq.id[:8]}_{datetime.now().strftime('%Y%m%d')}.pdf"
+        filename = f"BoQPro_BoQ_{boq.tender_reference or boq.id[:8]}_{datetime.now().strftime('%Y%m%d')}.pdf"
         mime = "application/pdf"
 
     storage_key = f"exports/{auth.organisation_id}/{boq.id}/{export_id}_{filename}"

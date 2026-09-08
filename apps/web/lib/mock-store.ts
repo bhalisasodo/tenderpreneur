@@ -1,5 +1,5 @@
 /**
- * In-Browser Mock Store & Simulation Engine for Tenderpreneur
+ * In-Browser Mock Store & Simulation Engine for BoQPro
  * Provides complete local persistence (localStorage) and realistic South African
  * tender data so the static GitHub Pages deployment works out-of-the-box without
  * requiring a live server.
@@ -36,7 +36,8 @@ interface MockStorageState {
   supplierProfiles: Record<string, { categories: string[]; regions: string[] }>;
 }
 
-const STORAGE_KEY = "tenderpreneur_mock_db_v2";
+const STORAGE_KEY = "boqpro_mock_db_v1";
+const LEGACY_STORAGE_KEY = "tenderpreneur_mock_db_v2";
 
 export class MockStore {
   private state: MockStorageState;
@@ -425,7 +426,7 @@ export class MockStore {
       return this.getInitialState();
     }
     try {
-      const data = localStorage.getItem(STORAGE_KEY);
+      const data = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
       if (data) {
         return JSON.parse(data);
       }
@@ -993,7 +994,7 @@ export class MockStore {
       total_price_minor: (req.line_item_quantity || 1) * unitPriceMinor,
       currency: "ZAR",
       lead_time_days: leadTimeDays || 3,
-      notes: notes || "Submitted via Tenderpreneur Supplier Portal",
+      notes: notes || "Submitted via BoQPro Supplier Portal",
       is_selected: false,
       submitted_at: new Date().toISOString(),
     };
@@ -1026,10 +1027,10 @@ export class MockStore {
     const boq = await this.getBoQ(boqId);
     return {
       download_url: `data:text/plain;charset=utf-8,${encodeURIComponent(
-        `TENDERPRENEUR VERIFIED EXPORT\nTender: ${boq.title}\nRef: ${boq.tender_reference}\nRegion: ${boq.region}\nExported: ${new Date().toISOString()}\n\nLine Items:\n` +
+        `BOQPRO VERIFIED EXPORT\nTender: ${boq.title}\nRef: ${boq.tender_reference}\nRegion: ${boq.region}\nExported: ${new Date().toISOString()}\n\nLine Items:\n` +
           boq.line_items.map((i) => `${i.source_row_reference} | ${i.description} | ${i.quantity} ${i.unit} | R${((i.final_price_minor || 0) / 100).toFixed(2)}`).join("\n")
       )}`,
-      filename: `Priced_BoQ_${boq.tender_reference || "Tender"}_${new Date().toISOString().slice(0, 10)}.${format === "xlsx" ? "csv" : "txt"}`,
+      filename: `BoQPro_Priced_BoQ_${boq.tender_reference || "Tender"}_${new Date().toISOString().slice(0, 10)}.${format === "xlsx" ? "csv" : "txt"}`,
     };
   }
 

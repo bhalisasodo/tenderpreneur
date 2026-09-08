@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Tenderpreneur BoQ Ingestion Stress Test Runner
-==============================================
+BoQPro BoQ Ingestion Stress Test Runner
+=======================================
 Executes the comprehensive stress-testing test suite covering:
 1. 100-Item Municipal Mega-Schedule Throughput & Category Distribution
 2. Dirty Excel Workbook with Merged Headers, Subtotals & Comma Strings
@@ -18,7 +18,7 @@ import subprocess
 
 def main():
     print("=" * 65)
-    print("       TENDERPRENEUR BoQ INGESTION STRESS TESTING SUITE")
+    print("         BOQPRO BoQ INGESTION STRESS TESTING SUITE")
     print("  100 Items | Dirty Excel | GCC 2015 Clauses | OCR Glyph Repairs")
     print("=" * 65)
 
@@ -33,12 +33,12 @@ def main():
         python_exe = os.path.join(api_dir, ".venv", "bin", "python")
 
     cmd = [
-        pytest_exe if os.path.exists(pytest_exe) else python_exe,
+        python_exe,
+        "-m",
+        "pytest",
         "-v",
         "tests/test_boq_ingestion_stress.py",
     ]
-    if not os.path.exists(pytest_exe):
-        cmd = [python_exe, "-m", "pytest", "-v", "tests/test_boq_ingestion_stress.py"]
 
     print(f"\n[INFO] Running stress tests in {api_dir}:")
     print(f"[INFO] Command: {' '.join(cmd)}\n")

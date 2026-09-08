@@ -150,7 +150,7 @@ class StandardExportRenderer:
     ) -> bytes:
         if not REPORTLAB_AVAILABLE:
             # Fallback text representation if reportlab is unavailable
-            content = f"TENDERPRENEUR BOQ EXPORT\nTitle: {boq_data.get('title')}\n"
+            content = f"BOQPRO BOQ EXPORT\nTitle: {boq_data.get('title')}\n"
             return content.encode('utf-8')
 
         buffer = io.BytesIO()
@@ -162,7 +162,7 @@ class StandardExportRenderer:
             'TitleStyle',
             parent=styles['Heading1'],
             fontSize=16,
-            textColor=colors.HexColor('#1E3A8A'),
+            textColor=colors.HexColor('#12233F'),
             spaceAfter=6,
         )
         meta_style = ParagraphStyle(
@@ -176,7 +176,7 @@ class StandardExportRenderer:
         table_bold = ParagraphStyle('TableBold', parent=styles['Normal'], fontSize=8, fontName='Helvetica-Bold')
 
         # Header
-        elements.append(Paragraph(f"<b>Tenderpreneur Priced Bill of Quantities</b>: {boq_data.get('title', 'Tender')}", title_style))
+        elements.append(Paragraph(f"<b>BoQPro Priced Bill of Quantities</b>: {boq_data.get('title', 'Tender')}", title_style))
         elements.append(Paragraph(f"Tender Reference: <b>{boq_data.get('tender_reference', 'N/A')}</b> | Region: <b>{boq_data.get('region', 'N/A')}</b> | Date: {datetime.now().strftime('%Y-%m-%d')}", meta_style))
         elements.append(Spacer(1, 10))
 
@@ -217,7 +217,7 @@ class StandardExportRenderer:
 
         t = Table(table_data, colWidths=[25, 45, 260, 40, 50, 80, 90, 160])
         t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E3A8A')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#12233F')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),

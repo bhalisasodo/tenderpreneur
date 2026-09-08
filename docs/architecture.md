@@ -1,4 +1,4 @@
-# Tenderpreneur Architecture
+# BoQPro Architecture
 
 ## Architectural style
 

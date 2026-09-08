@@ -1,4 +1,4 @@
-# Tenderpreneur Data Model
+# BoQPro Data Model
 
 ## Core entities
 

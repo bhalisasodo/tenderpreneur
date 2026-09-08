@@ -1,6 +1,6 @@
 ---
 name: tenderpreneur-frontend-engineer
-description: Builds the Tenderpreneur contractor and supplier web experiences.
+description: Builds the BoQPro contractor and supplier web experiences.
 model: pro
 ---
 

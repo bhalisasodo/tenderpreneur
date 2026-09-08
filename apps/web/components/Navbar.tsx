@@ -108,24 +108,24 @@ export default function Navbar() {
     }
   };
 
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
   const isContractorView = pathname.startsWith("/contractor");
   const isSupplierView = pathname.startsWith("/supplier");
 
   return (
-    <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-50 shadow-md">
+    <header className="bg-[#12233F] text-white border-b border-[#1f3760] sticky top-0 z-50 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
         {/* Brand */}
         <div className="flex items-center space-x-3">
           <Link href="/" className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center font-black text-xl text-white shadow">
-              T
-            </div>
-            <div>
-              <span className="font-bold text-lg tracking-tight text-white">Tenderpreneur</span>
-              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800 uppercase tracking-wide">
-                MVP
-              </span>
-            </div>
+            <img
+              src={`${basePath}/boqpro-logo-horizontal-reversed.svg`}
+              alt="BoQPro Logo"
+              className="h-9 w-auto"
+            />
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#0c182c] text-[#D9A94A] border border-[#234275] uppercase tracking-wide">
+              MVP
+            </span>
           </Link>
         </div>
 
@@ -135,8 +135,8 @@ export default function Navbar() {
             href="/contractor"
             className={`px-3 py-1.5 rounded-lg transition ${
               isContractorView
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-300 hover:text-white hover:bg-slate-800"
+                ? "bg-[#D9A94A] text-[#12233F] font-bold shadow-sm"
+                : "text-slate-300 hover:text-white hover:bg-slate-800/80"
             }`}
           >
             👷 Contractor Portal
@@ -145,8 +145,8 @@ export default function Navbar() {
             href="/supplier"
             className={`px-3 py-1.5 rounded-lg transition ${
               isSupplierView
-                ? "bg-blue-600 text-white shadow-sm"
-                : "text-slate-300 hover:text-white hover:bg-slate-800"
+                ? "bg-[#D9A94A] text-[#12233F] font-bold shadow-sm"
+                : "text-slate-300 hover:text-white hover:bg-slate-800/80"
             }`}
           >
             🧱 Supplier Portal (Mobile)
@@ -233,7 +233,7 @@ export default function Navbar() {
                 </div>
                 <div className="text-[11px] mt-0.5 opacity-90">
                   {isMockMode
-                    ? "Tenderpreneur is running 100% in your browser using local storage persistence with South African seed tenders & suppliers. No external backend required."
+                    ? "BoQPro is running 100% in your browser using local storage persistence with South African seed tenders & suppliers. No external backend required."
                     : `Currently sending requests to: ${api.getApiBase()}`}
                 </div>
               </div>

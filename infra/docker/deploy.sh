@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Tenderpreneur Production Deployment Script
+# Tenderpreneur / BoQPro Production Deployment Script
 # Usage: ./deploy.sh
 # ==============================================================================
 set -euo pipefail
@@ -8,7 +8,7 @@ set -euo pipefail
 ENV_FILE=".env.production"
 
 echo "============================================================"
-echo "          TENDERPRENEUR PRODUCTION DEPLOYMENT"
+echo "            BOQPRO PRODUCTION DEPLOYMENT"
 echo "============================================================"
 
 # 1. Check for .env.production file
@@ -22,8 +22,9 @@ echo "[+] Loading environment configuration from $ENV_FILE..."
 export $(grep -v '^#' "$ENV_FILE" | xargs)
 
 # 2. Check that JWT secret is not the default
-if [[ "$TENDERPRENEUR_JWT_SECRET" == *"replace_me"* ]] || [ ${#TENDERPRENEUR_JWT_SECRET} -lt 32 ]; then
-    echo "[-] Security Error: TENDERPRENEUR_JWT_SECRET is still set to placeholder or under 32 chars."
+JWT_SECRET_VAL="${BOQPRO_JWT_SECRET:-${TENDERPRENEUR_JWT_SECRET:-}}"
+if [[ "$JWT_SECRET_VAL" == *"replace_me"* ]] || [ ${#JWT_SECRET_VAL} -lt 32 ]; then
+    echo "[-] Security Error: BOQPRO_JWT_SECRET is still set to placeholder or under 32 chars."
     echo "    Generate a strong secret with: openssl rand -hex 32"
     exit 1
 fi
@@ -33,7 +34,7 @@ docker compose -f docker-compose.yml --env-file "$ENV_FILE" build
 docker compose -f docker-compose.yml --env-file "$ENV_FILE" up -d
 
 echo "[+] Waiting for PostgreSQL database to be healthy..."
-until docker compose -f docker-compose.yml exec -T postgres pg_isready -U "${POSTGRES_USER:-tenderpreneur}" -d "${POSTGRES_DB:-tenderpreneur}" > /dev/null 2>&1; do
+until docker compose -f docker-compose.yml exec -T postgres pg_isready -U "${POSTGRES_USER:-boqpro}" -d "${POSTGRES_DB:-boqpro}" > /dev/null 2>&1; do
     echo "    ... waiting for postgres"
     sleep 2
 done
@@ -48,6 +49,6 @@ HEALTH_RESPONSE=$(docker compose -f docker-compose.yml exec -T api curl -s http:
 echo "    Health status: $HEALTH_RESPONSE"
 
 echo "============================================================"
-echo "  [SUCCESS] TENDERPRENEUR DEPLOYED SUCCESSFULLY!"
+echo "    [SUCCESS] BOQPRO DEPLOYED SUCCESSFULLY!"
 echo "  Web & API live at: https://${DOMAIN_NAME:-localhost}"
 echo "============================================================"

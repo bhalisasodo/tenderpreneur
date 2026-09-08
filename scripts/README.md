@@ -1,6 +1,6 @@
-# Tenderpreneur Automation & Verification Scripts
+# BoQPro Automation & Verification Scripts
 
-This directory contains repeatable automation and verification scripts for Tenderpreneur.
+This directory contains repeatable automation and verification scripts for BoQPro.
 
 ## `verify_mvp_loop.py`
 
