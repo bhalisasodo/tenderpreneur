@@ -37,10 +37,38 @@ $$\text{Upload BoQ/Scope} \longrightarrow \text{Structured Parsing} \longrightar
 
 | Topic | Original Source Brief Mentions | MVP Constraint Resolution |
 |---|---|---|
-| **Marketplace Scale** | Two-sided marketplace across multiple construction trades. | **Narrow Focus:** Initial launch supports controlled trade categories (`building-materials`, `concrete`, `roofing`, `earthworks`) and single regions (e.g. KwaZulu-Natal / Gauteng) to validate the core loop before category expansion. |
+| **Marketplace Scale** | Two-sided marketplace across multiple construction trades. | **Narrow Focus:** Initial launch is the eThekwini (Durban) metro, with one active category: general building materials and civils (cement, aggregate/stone and sand, reinforcing steel, bricks/blocks). Electrical supplies and fittings remain named but inactive until the first loop passes its pilot gate. |
 | **Microservices vs Monolith** | Logical service boundaries (BoQ Service, Matching Service, Quote Service, Export Service). | **Modular Monolith:** Kept within a single FastAPI application with internal domain modularity (`app/domains/*`) to ensure high development velocity, testability, and zero infrastructure overhead. |
 | **Supplier Compliance** | CIDB ratings, CSD verification, and B-BBEE certificates. | **Self-Declared Profile Metadata:** Stored as structured supplier profile fields without building fragile third-party scrapers or automated verification APIs in the MVP. |
 | **Marketplace Automation** | Fully automated RFQ routing. | **Operator Tolerance:** The system allows operator-assisted matching, concierge follow-ups, and manual price overrides to validate real user behavior before introducing complex automation. |
+
+### 1.4 Supplier Liquidity Pilot: Launch Definition
+
+#### Cohort and sourcing
+- **Launch region:** eThekwini (Durban) metro.
+- **Active category:** General building materials and civils, covering cement, aggregate/stone and sand, reinforcing steel, and bricks/blocks. Treat these as subcategories of one pilot category so the supplier pool is not split across separate launches.
+- **Held in reserve:** Electrical supplies and fittings. Keep the category named in the roadmap, but do not activate matching or recruit against it until the primary category passes the pilot gate.
+- **Supplier pool:** Minimum 6 invited and eligible suppliers for the active category; recruit toward 8–10 to buffer first-touch non-response. Six is a floor, not a guarantee of 3 quotes per RFQ.
+- **Prospect sourcing:** Build a named, verified list from L2B construction listings, CIDB register searches, and local merchant branches/independent wholesalers in Durban, Pinetown, and Verulam. Verify branch, category coverage, contact channel, and willingness to receive RFQs directly; treat any suggested company names as leads to verify, not approved suppliers.
+- **Recruitment approach:** Concierge-led and free during the pilot. Record supplier name, branch/area, subcategory, verified contact, consent/invitation date, activation status, responses, and quote turnaround. No public self-service expansion is required for this controlled cohort.
+
+#### Pilot success measures
+- Run at least **15 live RFQs over 4–6 weeks**, with each request using a **24–48 hour response window**.
+- **Go/no-go bar:** At least **70% of eligible live RFQs receive 2 or more valid supplier quotes before their deadline**.
+- **Liquidity target:** Seek 3 quotes per RFQ; report the share reaching 3 as a separate stretch/diagnostic measure rather than masking misses behind the 2-quote gate.
+- Track median time to first valid quote, invited/matched suppliers per RFQ, delivery failures, no-response rate, and supplier/contractor feedback.
+- Denominator: all live RFQs broadcast during the measurement window, including unmatched and zero-response requests. Exclude only test requests and requests cancelled before dispatch. Count distinct supplier organisations with valid quotes submitted before the deadline.
+- Do not expand to electrical or another region until the RFQ gate is met and the pilot review confirms the response window, matching quality, and supplier experience are workable.
+
+#### Work required before external suppliers use the portal
+- Replace demo persona/email-only token issuance and implicit seeded-supplier login with operator-controlled supplier invitations and verified, secure sign-in; keep demo access unavailable in production.
+- Remove fabricated compliance defaults and capture compliance details only as optional, self-declared information. Do not label suppliers verified without an actual verification process.
+- Define and validate the primary-category taxonomy and aliases (cement, aggregate, sand, reinforcing steel, bricks, blocks) against the implemented matcher; ensure electrical remains inactive.
+- Restrict RFQ delivery to active, eligible, consented suppliers matching the category and eThekwini service area. Remove the broadcast-to-all fallback and validate explicitly selected recipients.
+- Configure and test a real delivery channel, recipient selection, secure request access, delivery status, retry/failure handling, and operator follow-up. The console notification provider is development-only; a relative link is not a usable supplier invitation.
+- Verify mobile quote submission for price, lead time, terms, deadline/time zone, decline/unavailable handling, and quote revision rules. Preserve supplier-only visibility of each supplier's own submissions.
+- Add tests for invitation/sign-in, supplier tenant isolation, unmatched/inactive suppliers, recipient validation, delivery failure, duplicate broadcast, expired requests, and the RFQ metric denominator. Rehearse the full journey with an internal/test supplier before live dispatch.
+- Prepare the operator runbook: supplier approval and pause process, manual follow-up at 12 hours for unanswered RFQs, support contact, incident handling, and weekly pilot metric review.
 
 ---
 
