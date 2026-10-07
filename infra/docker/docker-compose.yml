@@ -32,11 +32,13 @@ services:
       context: ../../apps/api
       dockerfile: Dockerfile
     environment:
-      BOQPRO_DATABASE_URL: postgresql+psycopg://boqpro:devpassword@postgres:5432/boqpro
-      BOQPRO_ENVIRONMENT: production
+      BOQPRO_DATABASE_URL: postgresql+psycopg://boqpro:${POSTGRES_PASSWORD:-devpassword}@postgres:5432/boqpro
+      BOQPRO_ENVIRONMENT: ${BOQPRO_ENVIRONMENT:-production}
       BOQPRO_DEBUG: "false"
-      BOQPRO_STORAGE_TYPE: local
-      BOQPRO_JWT_SECRET: dev-secret-key-change-in-production-must-be-32-chars-long
+      BOQPRO_STORAGE_TYPE: ${BOQPRO_STORAGE_TYPE:-local}
+      BOQPRO_JWT_SECRET: ${BOQPRO_JWT_SECRET:-dev-secret-key-change-in-production-must-be-32-chars-long}
+      BOQPRO_APP_BASE_URL: ${BOQPRO_APP_BASE_URL:-http://localhost}
+      BOQPRO_CORS_ORIGINS: ${BOQPRO_CORS_ORIGINS:-http://localhost,http://localhost:3000,http://127.0.0.1:3000}
     ports:
       - "8000:8000"
     volumes:
@@ -50,9 +52,9 @@ services:
       context: ../../apps/web
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
     ports:
       - "3000:3000"
     depends_on:

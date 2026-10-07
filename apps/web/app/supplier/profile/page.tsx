@@ -39,16 +39,7 @@ export default function SupplierProfilePage() {
 
   useEffect(() => {
     // Fetch profile
-    const token = localStorage.getItem("tp_token");
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-
-    fetch("http://localhost:8000/api/v1/suppliers/profile", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
+    api.getSupplierProfile()
       .then((data) => {
         if (data && data.categories) {
           setCategories(data.categories || []);
@@ -78,30 +69,19 @@ export default function SupplierProfilePage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem("tp_token");
-    if (!token) return;
 
     try {
       setSaving(true);
       setSavedMessage(false);
-      const res = await fetch("http://localhost:8000/api/v1/suppliers/profile", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          categories,
-          service_regions: regions,
-          compliance_flags: { bbee_level: bbeeLevel, cidb_grade: cidbGrade, csd_registered: true },
-          preferred_contact_method: contactMethod,
-          active: true,
-        }),
+      await api.updateSupplierProfile({
+        categories,
+        service_regions: regions,
+        compliance_flags: { bbee_level: bbeeLevel, cidb_grade: cidbGrade, csd_registered: true },
+        preferred_contact_method: contactMethod,
+        active: true,
       });
-      if (res.ok) {
-        setSavedMessage(true);
-        setTimeout(() => setSavedMessage(false), 3000);
-      }
+      setSavedMessage(true);
+      setTimeout(() => setSavedMessage(false), 3000);
     } catch (err: any) {
       alert("Failed to save profile: " + err.message);
     } finally {

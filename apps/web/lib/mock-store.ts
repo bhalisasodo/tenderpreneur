@@ -486,6 +486,89 @@ export class MockStore {
     return this.state.users;
   }
 
+  async registerSupplier(payload: any): Promise<any> {
+    const orgId = "org-" + generateId();
+    const userId = "user-" + generateId();
+    const org: OrganisationDTO = {
+      id: orgId,
+      type: "supplier",
+      legal_name: payload.legal_name,
+      trading_name: payload.trading_name || payload.legal_name,
+      email: payload.email,
+      phone: payload.phone,
+      region: payload.region,
+    };
+    const user: UserDTO = {
+      id: userId,
+      email: payload.email,
+      name: payload.contact_name,
+      role: "admin",
+      organisation_id: orgId,
+      organisation: org,
+    };
+    this.state.organisations.push(org);
+    this.state.users.push(user);
+    this.state.supplierProfiles[orgId] = {
+      categories: payload.categories || ["building-materials"],
+      regions: payload.service_regions || [payload.region],
+    };
+    const profile = {
+      id: "profile-" + generateId(),
+      organisation_id: orgId,
+      categories: payload.categories || ["building-materials"],
+      service_regions: payload.service_regions || [payload.region],
+      compliance_flags: payload.compliance_flags || {},
+      preferred_contact_method: payload.preferred_contact_method || "whatsapp",
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.saveState(this.state);
+    const session: AuthSession = {
+      access_token: "mock-jwt-" + generateId(),
+      token_type: "bearer",
+      user,
+      organisation: org,
+    };
+    if (typeof window !== "undefined") {
+      localStorage.setItem("tp_token", session.access_token);
+      localStorage.setItem("tp_session", JSON.stringify(session));
+    }
+    return {
+      ...session,
+      profile,
+    };
+  }
+
+  async getSupplierProfile(): Promise<any> {
+    const me = await this.getMe();
+    const sp = this.state.supplierProfiles[me.organisation.id] || {
+      categories: ["building-materials"],
+      regions: [me.organisation.region || "KwaZulu-Natal"],
+    };
+    return {
+      id: "profile-" + me.organisation.id,
+      organisation_id: me.organisation.id,
+      categories: sp.categories,
+      service_regions: sp.regions,
+      compliance_flags: { csd_registered: true, bbee_level: "1" },
+      preferred_contact_method: "whatsapp",
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  async updateSupplierProfile(payload: any): Promise<any> {
+    const me = await this.getMe();
+    this.state.supplierProfiles[me.organisation.id] = {
+      categories: payload.categories || [],
+      regions: payload.service_regions || [],
+    };
+    this.saveState(this.state);
+    return this.getSupplierProfile();
+  }
+
   // BoQs
   async listBoQs(): Promise<BoQSummaryDTO[]> {
     return this.state.boqs.map((b) => {

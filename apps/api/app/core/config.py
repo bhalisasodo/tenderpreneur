@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
     rate_limit_auth_per_minute: int = 20
+    password_salt: str = "boqpro-default-salt-change-in-production"
+    app_base_url: str = "http://localhost:3000"
 
     # File Storage & Ingestion Limits
     storage_type: str = "local"  # "local" or "s3"
@@ -68,7 +70,8 @@ class Settings(BaseSettings):
         # Support fallback from legacy TENDERPRENEUR_* env vars if BOQPRO_* was not provided
         field_keys = [
             "environment", "debug", "database_url", "jwt_secret", "jwt_algorithm",
-            "jwt_expire_minutes", "rate_limit_auth_per_minute", "storage_type",
+            "jwt_expire_minutes", "rate_limit_auth_per_minute", "password_salt", "app_base_url",
+            "storage_type",
             "local_storage_path", "object_storage_endpoint", "object_storage_bucket",
             "object_storage_access_key", "object_storage_secret_key", "max_upload_size_bytes",
             "llm_provider", "openai_api_key", "gemini_api_key", "gemini_model",

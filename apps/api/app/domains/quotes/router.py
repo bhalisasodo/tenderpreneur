@@ -17,7 +17,8 @@ from app.core.models import (
     SupplierProfile,
     utc_now,
 )
-from app.core.security import AuthContext, get_current_auth, require_contractor, require_supplier
+from app.core.config import settings
+from app.core.security import AuthContext, create_rfq_access_token, get_current_auth, require_contractor, require_supplier
 from app.domains.audit.service import log_audit_event
 from app.domains.matching.service import match_suppliers_for_item
 from app.domains.quotes.simulator import simulate_all_quotes_for_boq, simulate_supplier_quotes_for_request
@@ -235,6 +236,9 @@ async def broadcast_quote_request(
             sup_res = await db.execute(sup_stmt)
             supplier_org = sup_res.scalar_one_or_none()
             if supplier_org:
+                rfq_token = create_rfq_access_token(quote_request_id=qr.id, supplier_org_id=supplier_org.id)
+                base_url = settings.app_base_url.rstrip("/")
+                submission_link = f"{base_url}/supplier/quote-requests/{qr.id}?access_token={rfq_token}"
                 await notification_provider.send_quote_request_notification(
                     supplier_id=supplier_org.id,
                     supplier_name=supplier_org.legal_name,
@@ -245,7 +249,7 @@ async def broadcast_quote_request(
                     quantity=line_item.quantity,
                     unit=line_item.unit,
                     response_deadline_iso=qr.response_deadline.isoformat(),
-                    submission_link=f"/supplier/quote-requests/{qr.id}",
+                    submission_link=submission_link,
                 )
 
     await log_audit_event(
@@ -482,6 +486,12 @@ async def get_supplier_quote_request(
     auth: AuthContext = Depends(require_supplier),
     db: AsyncSession = Depends(get_db),
 ):
+    if auth.is_rfq_direct and auth.rfq_id != quote_request_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "Direct RFQ access token is not authorized for this quote request."},
+        )
+
     stmt = (
         select(QuoteRequest)
         .join(QuoteRequestSupplier, QuoteRequest.id == QuoteRequestSupplier.quote_request_id)
@@ -563,6 +573,12 @@ async def submit_quote(
     auth: AuthContext = Depends(require_supplier),
     db: AsyncSession = Depends(get_db),
 ):
+    if auth.is_rfq_direct and auth.rfq_id != quote_request_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "Direct RFQ access token is not authorized for this quote request."},
+        )
+
     stmt = (
         select(QuoteRequest)
         .join(QuoteRequestSupplier, QuoteRequest.id == QuoteRequestSupplier.quote_request_id)
