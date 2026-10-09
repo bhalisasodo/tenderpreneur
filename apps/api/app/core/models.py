@@ -81,7 +81,8 @@ class SupplierProfile(Base):
     service_regions = Column(JSON, nullable=False, default=list)  # list[str] e.g. ["KwaZulu-Natal"]
     compliance_flags = Column(JSON, nullable=False, default=dict)  # dict e.g. {"bbee_level": "1"}
     preferred_contact_method = Column(String(20), nullable=False, default="whatsapp")  # "whatsapp"|"email"|"sms"
-    active = Column(Boolean, nullable=False, default=True)
+    status = Column(String(20), nullable=False, default="pending")  # pending | approved | rejected | suspended
+    active = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 

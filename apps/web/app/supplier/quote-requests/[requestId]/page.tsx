@@ -42,6 +42,13 @@ export default function SupplierQuoteSubmissionPage() {
   const loadRequest = async () => {
     try {
       setLoading(true);
+      if (typeof window !== "undefined" && window.location.search) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get("access_token");
+        if (token) {
+          localStorage.setItem("tp_token", token);
+        }
+      }
       const data = await api.getSupplierQuoteRequest(requestId);
       setRequest(data);
       if (data.quotes && data.quotes.length > 0) {

@@ -1,6 +1,8 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
+
+SupplierProfileStatus = Literal["pending", "approved", "rejected", "suspended"]
 
 
 class SupplierProfileBase(BaseModel):
@@ -8,7 +10,8 @@ class SupplierProfileBase(BaseModel):
     service_regions: List[str] = Field(default_factory=list)
     compliance_flags: Dict[str, Any] = Field(default_factory=dict)
     preferred_contact_method: str = Field(default="whatsapp")
-    active: bool = True
+    status: SupplierProfileStatus = Field(default="pending")
+    active: bool = False
 
 
 class SupplierProfileCreate(SupplierProfileBase):
@@ -16,11 +19,12 @@ class SupplierProfileCreate(SupplierProfileBase):
 
 
 class SupplierProfileUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     categories: Optional[List[str]] = None
     service_regions: Optional[List[str]] = None
     compliance_flags: Optional[Dict[str, Any]] = None
     preferred_contact_method: Optional[str] = None
-    active: Optional[bool] = None
 
 
 class SupplierProfileResponse(SupplierProfileBase):
@@ -44,3 +48,7 @@ class SupplierMatchResponse(BaseModel):
     service_regions: List[str]
     preferred_contact_method: str
     match_reasons: List[str]
+
+
+class SupplierApprovalResponse(SupplierProfileResponse):
+    pass

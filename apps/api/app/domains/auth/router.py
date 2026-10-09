@@ -5,12 +5,135 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.models import Organisation, User
-from app.core.security import AuthContext, create_access_token, get_current_auth
+from app.core.models import Organisation, SupplierProfile, User, utc_now
+from app.core.security import (
+    AuthContext,
+    create_access_token,
+    get_current_auth,
+    hash_password,
+    verify_password,
+)
 from app.core.rate_limit import rate_limit_auth
-from app.schemas.auth import LoginRequest, OrganisationResponse, TokenResponse, UserResponse
+from app.domains.audit.service import log_audit_event
+from app.schemas.auth import (
+    LoginRequest,
+    OrganisationResponse,
+    SupplierRegisterRequest,
+    SupplierRegisterResponse,
+    TokenResponse,
+    UserResponse,
+)
+from app.schemas.suppliers import SupplierProfileResponse
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+@router.post("/register-supplier", response_model=SupplierRegisterResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit_auth)])
+async def register_supplier(
+    request: SupplierRegisterRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Self-service onboarding endpoint for South African trade suppliers."""
+    normalized_email = request.email.lower().strip()
+
+    # Check for existing user or organisation by email
+    stmt = select(User).where(User.email == normalized_email)
+    existing_user_res = await db.execute(stmt)
+    if existing_user_res.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "EMAIL_ALREADY_REGISTERED", "message": "An account with this email address already exists."},
+        )
+
+    stmt_org = select(Organisation).where(Organisation.email == normalized_email)
+    existing_org_res = await db.execute(stmt_org)
+    if existing_org_res.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "ORGANISATION_EXISTS", "message": "An organisation with this email address already exists."},
+        )
+
+    # 1. Create Supplier Organisation
+    now = utc_now()
+    org = Organisation(
+        type="supplier",
+        legal_name=request.legal_name.strip(),
+        trading_name=request.trading_name.strip() if request.trading_name else request.legal_name.strip(),
+        email=normalized_email,
+        phone=request.phone.strip(),
+        region=request.region.strip(),
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(org)
+    await db.flush()
+
+    # 2. Create Primary Admin / Sales User
+    hashed_pwd = hash_password(request.password)
+    user = User(
+        organisation_id=org.id,
+        email=normalized_email,
+        name=request.contact_name.strip(),
+        role="admin",
+        password_hash=hashed_pwd,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(user)
+    await db.flush()
+
+    # 3. Create Supplier Profile with trade categories and service provinces
+    profile = SupplierProfile(
+        organisation_id=org.id,
+        categories=request.categories if request.categories else ["building-materials"],
+        service_regions=request.service_regions if request.service_regions else [request.region.strip()],
+        compliance_flags=request.compliance_flags or {},
+        preferred_contact_method=request.preferred_contact_method or "whatsapp",
+        status="pending",
+        active=False,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(profile)
+    await db.flush()
+
+    # 4. Audit Log
+    await log_audit_event(
+        db=db,
+        organisation_id=org.id,
+        actor_user_id=user.id,
+        entity_type="organisation",
+        entity_id=org.id,
+        action="organisation.registered",
+        after_json={
+            "legal_name": org.legal_name,
+            "type": "supplier",
+            "region": org.region,
+            "categories": profile.categories,
+            "service_regions": profile.service_regions,
+        },
+    )
+
+    await db.commit()
+    await db.refresh(org)
+    await db.refresh(user)
+    await db.refresh(profile)
+
+    token = create_access_token(
+        user_id=user.id,
+        organisation_id=org.id,
+        organisation_type=org.type,
+        email=user.email,
+        role=user.role,
+    )
+
+    return SupplierRegisterResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserResponse.model_validate(user),
+        organisation=OrganisationResponse.model_validate(org),
+        profile=SupplierProfileResponse.model_validate(profile),
+    )
 
 
 @router.post("/login", response_model=TokenResponse, dependencies=[Depends(rate_limit_auth)])
@@ -27,6 +150,14 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"code": "INVALID_CREDENTIALS", "message": "Invalid email address or credentials."},
         )
+
+    # If the user has a stored password hash, enforce strict password verification
+    if user.password_hash:
+        if not request.password or not verify_password(request.password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"code": "INVALID_CREDENTIALS", "message": "Invalid email address or password."},
+            )
 
     org = user.organisation
     token = create_access_token(

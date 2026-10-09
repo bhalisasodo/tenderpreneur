@@ -9,28 +9,29 @@
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
         Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        Cross-Origin-Opener-Policy "same-origin"
+        Cross-Origin-Resource-Policy "same-origin"
+        Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     }
 
     # Compress responses
     encode gzip zstd
 
-    # Route API requests to FastAPI backend
+    # Do not expose documentation or schema endpoints publicly.
+    @privateDocs path /docs* /openapi.json
+    respond @privateDocs 404
+
+    # Route API requests to FastAPI backend.
     handle /api/* {
         reverse_proxy api:8000
     }
 
-    # Route API documentation and health probes
-    handle /docs* {
-        reverse_proxy api:8000
-    }
-    handle /openapi.json {
-        reverse_proxy api:8000
-    }
+    # Public health endpoint used by container and ingress probes.
     handle /health {
         reverse_proxy api:8000
     }
 
-    # Route all other traffic to Next.js Web App
+    # Route all other traffic to Next.js Web App.
     handle {
         reverse_proxy web:3000
     }
