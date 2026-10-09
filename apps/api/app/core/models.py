@@ -51,10 +51,25 @@ class User(Base):
     name = Column(String(255), nullable=False)
     role = Column(String(50), nullable=False, default="admin")  # "admin", "estimator", "sales"
     password_hash = Column(String(255), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     organisation = relationship("Organisation", back_populates="users", lazy="selectin")
+
+
+class SupplierInvitation(Base):
+    __tablename__ = "supplier_invitations"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    user = relationship("User", lazy="selectin")
 
 
 class SupplierProfile(Base):
