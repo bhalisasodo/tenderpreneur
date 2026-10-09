@@ -37,9 +37,6 @@ include = ["app*"]
 [tool.ruff]
 line-length = 100
 
-[tool.setuptools.packages.find]
-include = ["app*"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = [".venv", "storage", "test_storage", ".pytest_cache", "alembic"]

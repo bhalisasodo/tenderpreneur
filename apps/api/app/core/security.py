@@ -1,10 +1,8 @@
-import hashlib
-import secrets
-from datetime import datetime, timedelta, timezone
 import base64
 import hashlib
 import hmac
 import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import jwt
 from fastapi import Depends, HTTPException, Request, Security, status
@@ -16,41 +14,6 @@ from app.core.config import settings
 from app.core.database import get_db
 
 security_scheme = HTTPBearer(auto_error=False)
-
-PASSWORD_ITERATIONS = 600_000
-
-
-def hash_password(password: str) -> str:
-    salt = secrets.token_bytes(16)
-    digest = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, PASSWORD_ITERATIONS
-    )
-    return "$".join(
-        [
-            "pbkdf2_sha256",
-            str(PASSWORD_ITERATIONS),
-            base64.urlsafe_b64encode(salt).decode("ascii"),
-            base64.urlsafe_b64encode(digest).decode("ascii"),
-        ]
-    )
-
-
-def verify_password(password: str, encoded_password: Optional[str]) -> bool:
-    if not encoded_password:
-        return False
-
-    try:
-        algorithm, iterations, encoded_salt, encoded_digest = encoded_password.split("$", 3)
-        if algorithm != "pbkdf2_sha256":
-            return False
-        salt = base64.urlsafe_b64decode(encoded_salt.encode("ascii"))
-        expected_digest = base64.urlsafe_b64decode(encoded_digest.encode("ascii"))
-        actual_digest = hashlib.pbkdf2_hmac(
-            "sha256", password.encode("utf-8"), salt, int(iterations)
-        )
-        return hmac.compare_digest(actual_digest, expected_digest)
-    except (TypeError, ValueError, UnicodeDecodeError):
-        return False
 
 
 class AuthContext(BaseModel):
@@ -70,15 +33,34 @@ def hash_password(password: str) -> str:
     return f"{salt}:{key.hex()}"
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plaintext password against a stored scrypt hash."""
-    if not hashed_password or ":" not in hashed_password:
+def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
+    if not hashed_password:
         return False
+
     try:
+        if hashed_password.startswith("pbkdf2_sha256$"):
+            algorithm, iterations, encoded_salt, encoded_digest = hashed_password.split("$", 3)
+            if algorithm != "pbkdf2_sha256":
+                return False
+            salt = base64.urlsafe_b64decode(encoded_salt.encode("ascii"))
+            expected_digest = base64.urlsafe_b64decode(encoded_digest.encode("ascii"))
+            actual_digest = hashlib.pbkdf2_hmac(
+                "sha256", plain_password.encode("utf-8"), salt, int(iterations)
+            )
+            return hmac.compare_digest(actual_digest, expected_digest)
+
+        if ":" not in hashed_password:
+            return False
         salt, original_hex = hashed_password.split(":", 1)
-        key = hashlib.scrypt(plain_password.encode("utf-8"), salt=salt.encode("utf-8"), n=16384, r=8, p=1)
-        return secrets.compare_digest(key.hex(), original_hex)
-    except Exception:
+        key = hashlib.scrypt(
+            plain_password.encode("utf-8"),
+            salt=salt.encode("utf-8"),
+            n=16384,
+            r=8,
+            p=1,
+        )
+        return hmac.compare_digest(key.hex(), original_hex)
+    except (TypeError, ValueError, UnicodeDecodeError):
         return False
 
 
@@ -196,5 +178,14 @@ def require_platform_admin(auth: AuthContext = Depends(get_current_auth)) -> Aut
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "FORBIDDEN", "message": "Action requires platform administrator permissions."},
+        )
+    return auth
+
+
+def require_operator(auth: AuthContext = Depends(get_current_auth)) -> AuthContext:
+    if auth.role not in {"platform_admin", "platform_operator"} and auth.email.lower() not in settings.operator_emails:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "OPERATOR_REQUIRED", "message": "Action requires platform operator permissions."},
         )
     return auth

@@ -59,6 +59,21 @@ export interface SupplierRegisterResponseDTO extends AuthSession {
   profile?: SupplierProfileDTO;
 }
 
+export interface SupplierReviewDTO {
+  id: string;
+  organisation_id: string;
+  legal_name: string;
+  trading_name?: string;
+  email: string;
+  phone?: string;
+  region: string;
+  categories: string[];
+  service_regions: string[];
+  approval_status: SupplierProfileStatus;
+  status: SupplierProfileStatus;
+  active: boolean;
+}
+
 export interface LineItemDTO {
   id: string;
   boq_id: string;
@@ -423,23 +438,6 @@ class ApiClient {
     } catch {
       return mockStore.updateSupplierProfile(payload);
     }
-  }
-
-  async registerSupplier(data: {
-    legal_name: string;
-    trading_name?: string;
-    contact_name: string;
-    email: string;
-    phone: string;
-    password: string;
-    categories: string[];
-    service_regions: string[];
-    preferred_contact_method: string;
-  }): Promise<SupplierRegistrationDTO> {
-    return this.request<SupplierRegistrationDTO>("/auth/supplier-registration", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
   }
 
   async listSupplierReviewQueue(): Promise<SupplierReviewDTO[]> {

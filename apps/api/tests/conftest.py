@@ -1,4 +1,3 @@
-import asyncio
 import os
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -15,16 +14,9 @@ os.environ["TENDERPRENEUR_DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["TENDERPRENEUR_STORAGE_TYPE"] = "local"
 os.environ["TENDERPRENEUR_LOCAL_STORAGE_PATH"] = "./test_storage"
 
-from app.core.config import settings
 from app.core.database import Base, get_db
 from app.core.models import (
-    BoQ,
-    Document,
-    LineItem,
     Organisation,
-    Quote,
-    QuoteRequest,
-    QuoteRequestSupplier,
     SupplierProfile,
     User,
     generate_uuid,
@@ -277,6 +269,13 @@ async def seeded_entities(db_session: AsyncSession):
         organisation_type="contractor",
         email=platform_admin_user.email,
         role=platform_admin_user.role,
+    )
+    operator_token = create_access_token(
+        user_id=operator_user.id,
+        organisation_id=operator_user.organisation_id,
+        organisation_type="contractor",
+        email=operator_user.email,
+        role=operator_user.role,
     )
 
     return {

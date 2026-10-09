@@ -5,14 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.models import Organisation, SupplierProfile, utc_now
-from app.core.security import AuthContext, get_current_auth, require_platform_admin, require_supplier
+from app.core.models import SupplierProfile, utc_now
+from app.core.security import AuthContext, get_current_auth, require_operator, require_platform_admin, require_supplier
 from app.domains.audit.service import log_audit_event
 from app.domains.matching.service import match_suppliers_for_item
 from app.schemas.suppliers import (
     SupplierApprovalResponse,
     SupplierMatchResponse,
-    SupplierProfileCreate,
     SupplierProfileResponse,
     SupplierProfileUpdate,
     SupplierApprovalRequest,
@@ -96,7 +95,7 @@ async def list_supplier_review_queue(
     stmt = (
         select(SupplierProfile)
         .options(selectinload(SupplierProfile.organisation))
-        .where(SupplierProfile.approval_status.in_(["pending", "suspended", "rejected"]))
+        .where(SupplierProfile.status.in_(["pending", "suspended", "rejected"]))
         .order_by(SupplierProfile.created_at.asc())
     )
     result = await db.execute(stmt)
@@ -111,7 +110,8 @@ async def list_supplier_review_queue(
             region=profile.organisation.region,
             categories=profile.categories or [],
             service_regions=profile.service_regions or [],
-            approval_status=profile.approval_status,
+            approval_status=profile.status,
+            status=profile.status,
             active=profile.active,
         )
         for profile in result.scalars().all()
@@ -122,7 +122,7 @@ async def list_supplier_review_queue(
 @router.post("/{organisation_id}/approve", response_model=SupplierReviewResponse)
 async def approve_supplier(
     organisation_id: str,
-    payload: SupplierApprovalRequest,
+    payload: Optional[SupplierApprovalRequest] = None,
     auth: AuthContext = Depends(require_operator),
     db: AsyncSession = Depends(get_db),
 ):
@@ -130,7 +130,7 @@ async def approve_supplier(
         organisation_id=organisation_id,
         approval_status="approved",
         active=True,
-        reason=payload.reason,
+        reason=payload.reason if payload else None,
         auth=auth,
         db=db,
     )
@@ -139,7 +139,7 @@ async def approve_supplier(
 @router.post("/{organisation_id}/suspend", response_model=SupplierReviewResponse)
 async def suspend_supplier(
     organisation_id: str,
-    payload: SupplierApprovalRequest,
+    payload: Optional[SupplierApprovalRequest] = None,
     auth: AuthContext = Depends(require_operator),
     db: AsyncSession = Depends(get_db),
 ):
@@ -147,7 +147,7 @@ async def suspend_supplier(
         organisation_id=organisation_id,
         approval_status="suspended",
         active=False,
-        reason=payload.reason,
+        reason=payload.reason if payload else None,
         auth=auth,
         db=db,
     )
@@ -174,8 +174,8 @@ async def _set_supplier_approval(
             detail={"code": "SUPPLIER_NOT_FOUND", "message": "Supplier organisation not found."},
         )
 
-    before = {"approval_status": profile.approval_status, "active": profile.active}
-    profile.approval_status = approval_status
+    before = {"approval_status": profile.status, "active": profile.active}
+    profile.status = approval_status
     profile.active = active
     profile.updated_at = utc_now()
     await log_audit_event(
@@ -202,7 +202,8 @@ async def _set_supplier_approval(
         region=profile.organisation.region,
         categories=profile.categories or [],
         service_regions=profile.service_regions or [],
-        approval_status=profile.approval_status,
+        approval_status=profile.status,
+        status=profile.status,
         active=profile.active,
     )
 
@@ -241,42 +242,6 @@ async def list_all_suppliers(
                 )
             )
     return suppliers
-
-
-@router.post("/{supplier_org_id}/approve", response_model=SupplierApprovalResponse)
-async def approve_supplier(
-    supplier_org_id: str,
-    auth: AuthContext = Depends(require_platform_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    stmt = select(SupplierProfile).where(SupplierProfile.organisation_id == supplier_org_id)
-    res = await db.execute(stmt)
-    profile = res.scalar_one_or_none()
-    if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "SUPPLIER_NOT_FOUND", "message": "Supplier profile not found."},
-        )
-
-    previous_status = profile.status
-    profile.status = "approved"
-    profile.active = True
-    profile.updated_at = utc_now()
-
-    before_active = profile.active
-    await log_audit_event(
-        db=db,
-        organisation_id=supplier_org_id,
-        actor_user_id=auth.user_id,
-        entity_type="supplier_profile",
-        entity_id=profile.id,
-        action="supplier.approved",
-        before_json={"status": previous_status, "active": before_active},
-        after_json={"status": "approved", "active": True},
-    )
-    await db.commit()
-    await db.refresh(profile)
-    return SupplierApprovalResponse.model_validate(profile)
 
 
 @router.post("/{supplier_org_id}/reject", response_model=SupplierApprovalResponse)

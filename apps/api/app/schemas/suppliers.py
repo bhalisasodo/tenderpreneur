@@ -25,6 +25,7 @@ class SupplierProfileUpdate(BaseModel):
     service_regions: Optional[List[str]] = None
     compliance_flags: Optional[Dict[str, Any]] = None
     preferred_contact_method: Optional[str] = None
+    active: Optional[bool] = None
 
 
 class SupplierProfileResponse(SupplierProfileBase):
@@ -52,3 +53,22 @@ class SupplierMatchResponse(BaseModel):
 
 class SupplierApprovalResponse(SupplierProfileResponse):
     pass
+
+
+class SupplierReviewResponse(BaseModel):
+    id: str
+    organisation_id: str
+    legal_name: str
+    trading_name: Optional[str] = None
+    email: str
+    phone: Optional[str] = None
+    region: str
+    categories: List[str]
+    service_regions: List[str]
+    approval_status: str
+    status: str
+    active: bool
+
+
+class SupplierApprovalRequest(BaseModel):
+    reason: Optional[str] = Field(default=None, max_length=500)

@@ -4,8 +4,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.models import Organisation, SupplierProfile, User, utc_now
+from app.core.models import Organisation, SupplierProfile, User, generate_uuid, utc_now
 from app.core.security import (
     AuthContext,
     create_access_token,
@@ -18,6 +19,8 @@ from app.domains.audit.service import log_audit_event
 from app.schemas.auth import (
     LoginRequest,
     OrganisationResponse,
+    SupplierRegistrationRequest,
+    SupplierRegistrationResponse,
     SupplierRegisterRequest,
     SupplierRegisterResponse,
     TokenResponse,
@@ -160,11 +163,6 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
             )
 
     org = user.organisation
-    if org.type == "supplier" and (not org.supplier_profile or not org.supplier_profile.active):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"code": "SUPPLIER_PENDING_APPROVAL", "message": "Supplier account is pending approval."},
-        )
     role = "platform_operator" if user.email.lower() in settings.operator_emails else user.role
     token = create_access_token(
         user_id=user.id,
@@ -183,7 +181,7 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/supplier-registration", response_model=SupplierRegistrationResponse, status_code=status.HTTP_201_CREATED)
-async def register_supplier(
+async def register_supplier_legacy(
     request: SupplierRegistrationRequest,
     db: AsyncSession = Depends(get_db),
 ):
@@ -224,7 +222,7 @@ async def register_supplier(
         service_regions=[region.strip() for region in request.service_regions],
         compliance_flags={},
         preferred_contact_method=request.preferred_contact_method,
-        approval_status="pending",
+        status="pending",
         active=False,
         created_at=now,
         updated_at=now,

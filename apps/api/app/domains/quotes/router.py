@@ -1,14 +1,13 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.models import (
-    AuditEvent,
     BoQ,
     LineItem,
     NotificationDelivery,
@@ -20,12 +19,11 @@ from app.core.models import (
     utc_now,
 )
 from app.core.config import settings
-from app.core.security import AuthContext, create_rfq_access_token, get_current_auth, require_contractor, require_supplier
+from app.core.security import AuthContext, create_rfq_access_token, require_contractor, require_supplier
 from app.domains.audit.service import log_audit_event
 from app.domains.matching.service import match_suppliers_for_item
 from app.domains.quotes.simulator import simulate_all_quotes_for_boq, simulate_supplier_quotes_for_request
 from app.integrations.notifications import get_notification_provider
-from app.core.config import settings
 from pydantic import BaseModel
 
 from app.domains.parsing.segmentation import is_text_corrupted
@@ -242,7 +240,7 @@ async def broadcast_quote_request(
                 rfq_token = create_rfq_access_token(quote_request_id=qr.id, supplier_org_id=supplier_org.id)
                 base_url = settings.app_base_url.rstrip("/")
                 submission_link = f"{base_url}/supplier/quote-requests/{qr.id}?access_token={rfq_token}"
-                await notification_provider.send_quote_request_notification(
+                delivered = await notification_provider.send_quote_request_notification(
                     supplier_id=supplier_org.id,
                     supplier_name=supplier_org.legal_name,
                     supplier_contact=supplier_org.phone or supplier_org.email,
@@ -253,6 +251,16 @@ async def broadcast_quote_request(
                     unit=line_item.unit,
                     response_deadline_iso=qr.response_deadline.isoformat(),
                     submission_link=submission_link,
+                )
+                db.add(
+                    NotificationDelivery(
+                        quote_request_id=qr.id,
+                        supplier_organisation_id=supplier_org.id,
+                        channel="whatsapp",
+                        recipient=supplier_org.phone or supplier_org.email,
+                        status="sent" if delivered else "failed",
+                        error_message=None if delivered else "Notification provider reported delivery failure.",
+                    )
                 )
 
     await log_audit_event(
@@ -1115,5 +1123,3 @@ async def auto_select_best_quotes_for_boq(
         "updated_items": updated_items,
         "message": f"Automatically selected the lowest quote for {selected_count} line items.",
     }
-
-
