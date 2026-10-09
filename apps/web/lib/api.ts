@@ -26,6 +26,8 @@ export interface AuthSession {
   organisation: OrganisationDTO;
 }
 
+export type SupplierProfileStatus = "pending" | "approved" | "rejected" | "suspended";
+
 export interface SupplierProfileDTO {
   id: string;
   organisation_id: string;
@@ -33,6 +35,7 @@ export interface SupplierProfileDTO {
   service_regions: string[];
   compliance_flags: Record<string, any>;
   preferred_contact_method: string;
+  status: SupplierProfileStatus;
   active: boolean;
   created_at?: string;
   updated_at?: string;

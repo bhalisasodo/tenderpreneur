@@ -89,7 +89,8 @@ async def register_supplier(
         service_regions=request.service_regions if request.service_regions else [request.region.strip()],
         compliance_flags=request.compliance_flags or {},
         preferred_contact_method=request.preferred_contact_method or "whatsapp",
-        active=True,
+        status="pending",
+        active=False,
         created_at=now,
         updated_at=now,
     )

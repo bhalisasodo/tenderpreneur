@@ -33,6 +33,8 @@ export default function SupplierProfilePage() {
   const [contactMethod, setContactMethod] = useState("whatsapp");
   const [bbeeLevel, setBbeeLevel] = useState("1");
   const [cidbGrade, setCidbGrade] = useState("6GB");
+  const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "suspended">("pending");
+  const [active, setActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState(false);
@@ -45,6 +47,8 @@ export default function SupplierProfilePage() {
           setCategories(data.categories || []);
           setRegions(data.service_regions || []);
           setContactMethod(data.preferred_contact_method || "whatsapp");
+          setStatus(data.status || "pending");
+          setActive(Boolean(data.active));
           if (data.compliance_flags) {
             setBbeeLevel(data.compliance_flags.bbee_level || "1");
             setCidbGrade(data.compliance_flags.cidb_grade || "");
@@ -109,6 +113,30 @@ export default function SupplierProfilePage() {
           <h3 className="font-bold text-slate-900 text-base">Trade &amp; Region Profile</h3>
           <p className="text-xs text-slate-500">
             Configure the categories and regions you supply to receive automated matching quote requests.
+          </p>
+        </div>
+
+        <div className={`rounded-xl border p-3 text-xs ${
+          status === "approved"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+            : status === "rejected"
+              ? "border-rose-200 bg-rose-50 text-rose-900"
+              : status === "suspended"
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-slate-200 bg-slate-50 text-slate-700"
+        }`}>
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-bold capitalize">{status}</span>
+            <span>{active ? "Marketplace active" : "Marketplace inactive"}</span>
+          </div>
+          <p className="mt-1">
+            {status === "approved"
+              ? "You are approved and can receive quote requests."
+              : status === "rejected"
+                ? "Your supplier application has been rejected. Contact the platform administrator for details."
+                : status === "suspended"
+                  ? "Your marketplace access has been suspended. Contact the platform administrator."
+                  : "Your application is under review. You will be notified when it is approved."}
           </p>
         </div>
 

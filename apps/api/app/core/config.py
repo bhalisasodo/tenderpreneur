@@ -2,6 +2,7 @@ import os
 from typing import Any, List, Optional, Union
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator, model_validator
+from urllib.parse import urlparse
 
 
 class Settings(BaseSettings):
@@ -90,6 +91,17 @@ class Settings(BaseSettings):
                     data[key] = tp_val
         return data
 
+    @field_validator("cors_origins")
+    @classmethod
+    def validate_cors_origins(cls, origins: List[str]) -> List[str]:
+        normalized = []
+        for origin in origins:
+            parsed = urlparse(origin)
+            if not parsed.netloc:
+                raise ValueError(f"Production security violation: Invalid CORS origin: {origin!r}")
+            normalized.append(origin.rstrip("/"))
+        return normalized
+
     @model_validator(mode="after")
     def validate_production_security(self) -> "Settings":
         if self.environment.lower() in ("production", "prod"):
@@ -102,9 +114,29 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Production security violation: BOQPRO_JWT_SECRET must be set to a cryptographically secure key of at least 32 characters in production."
                 )
+            if (
+                not self.password_salt
+                or "insecure" in self.password_salt
+                or "replace-in-production" in self.password_salt
+                or "default-salt" in self.password_salt
+                or len(self.password_salt) < 32
+            ):
+                raise ValueError(
+                    "Production security violation: BOQPRO_PASSWORD_SALT must be set to a cryptographically secure value of at least 32 characters in production."
+                )
             if self.debug:
                 raise ValueError(
                     "Production security violation: BOQPRO_DEBUG must be False in production."
+                )
+            if self.database_url.startswith("sqlite"):
+                raise ValueError(
+                    "Production security violation: BOQPRO_DATABASE_URL must use PostgreSQL in production."
+                )
+            if not self.cors_origins or any(
+                urlparse(origin).scheme != "https" for origin in self.cors_origins
+            ):
+                raise ValueError(
+                    "Production security violation: CORS origins must be configured with HTTPS endpoints only."
                 )
         return self
 

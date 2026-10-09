@@ -140,6 +140,7 @@ async def seeded_entities(db_session: AsyncSession):
         service_regions=["KwaZulu-Natal"],
         compliance_flags={"csd_registered": True, "bbee_level": "1"},
         preferred_contact_method="whatsapp",
+        status="approved",
         active=True,
         created_at=now,
         updated_at=now,
@@ -177,11 +178,35 @@ async def seeded_entities(db_session: AsyncSession):
         service_regions=["KwaZulu-Natal", "Gauteng"],
         compliance_flags={"csd_registered": True},
         preferred_contact_method="whatsapp",
+        status="approved",
         active=True,
         created_at=now,
         updated_at=now,
     )
     db_session.add(supplier2_profile)
+
+    # Platform administrator
+    platform_admin_org = Organisation(
+        id=generate_uuid(),
+        type="contractor",
+        legal_name="BoQPro Platform Operations",
+        email="platform@boqpro.co.za",
+        region="National",
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(platform_admin_org)
+
+    platform_admin_user = User(
+        id=generate_uuid(),
+        organisation_id=platform_admin_org.id,
+        email="platform@boqpro.co.za",
+        name="BoQPro Platform Administrator",
+        role="platform_admin",
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(platform_admin_user)
 
     # Other Contractor (Tenant isolation test)
     other_contractor_org = Organisation(
@@ -233,6 +258,13 @@ async def seeded_entities(db_session: AsyncSession):
         organisation_type="contractor",
         email=other_user.email,
     )
+    platform_admin_token = create_access_token(
+        user_id=platform_admin_user.id,
+        organisation_id=platform_admin_org.id,
+        organisation_type="contractor",
+        email=platform_admin_user.email,
+        role=platform_admin_user.role,
+    )
 
     return {
         "contractor_org": contractor_org,
@@ -242,6 +274,9 @@ async def seeded_entities(db_session: AsyncSession):
         "supplier1_token": supplier1_token,
         "supplier2_org": supplier2_org,
         "supplier2_token": supplier2_token,
+        "platform_admin_org": platform_admin_org,
+        "platform_admin_user": platform_admin_user,
+        "platform_admin_token": platform_admin_token,
         "other_contractor_org": other_contractor_org,
         "other_token": other_token,
     }

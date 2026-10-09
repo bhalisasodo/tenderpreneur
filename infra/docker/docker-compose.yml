@@ -2,50 +2,46 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: boqpro
-      POSTGRES_USER: boqpro
-      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: ${POSTGRES_DB:-boqpro}
+      POSTGRES_USER: ${POSTGRES_USER:-boqpro}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - boqpro_postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U boqpro -d boqpro"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-boqpro} -d ${POSTGRES_DB:-boqpro}"]
       interval: 5s
       timeout: 5s
       retries: 5
-
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: boqpro
-      MINIO_ROOT_PASSWORD: change-me-local-only
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - boqpro_minio:/data
+    restart: unless-stopped
 
   api:
     build:
       context: ../../apps/api
       dockerfile: Dockerfile
     environment:
-      BOQPRO_DATABASE_URL: postgresql+psycopg://boqpro:${POSTGRES_PASSWORD:-devpassword}@postgres:5432/boqpro
+      BOQPRO_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-boqpro}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-boqpro}
       BOQPRO_ENVIRONMENT: ${BOQPRO_ENVIRONMENT:-production}
       BOQPRO_DEBUG: "false"
       BOQPRO_STORAGE_TYPE: ${BOQPRO_STORAGE_TYPE:-local}
-      BOQPRO_JWT_SECRET: ${BOQPRO_JWT_SECRET:-dev-secret-key-change-in-production-must-be-32-chars-long}
-      BOQPRO_APP_BASE_URL: ${BOQPRO_APP_BASE_URL:-http://localhost}
-      BOQPRO_CORS_ORIGINS: ${BOQPRO_CORS_ORIGINS:-http://localhost,http://localhost:3000,http://127.0.0.1:3000}
+      BOQPRO_JWT_SECRET: ${BOQPRO_JWT_SECRET:?BOQPRO_JWT_SECRET must be set}
+      BOQPRO_PASSWORD_SALT: ${BOQPRO_PASSWORD_SALT:?BOQPRO_PASSWORD_SALT must be set}
+      BOQPRO_APP_BASE_URL: ${BOQPRO_APP_BASE_URL:?BOQPRO_APP_BASE_URL must be set}
+      BOQPRO_CORS_ORIGINS: ${BOQPRO_CORS_ORIGINS:?BOQPRO_CORS_ORIGINS must be set}
+      BOQPRO_OBJECT_STORAGE_ENDPOINT: ${BOQPRO_OBJECT_STORAGE_ENDPOINT:-http://localhost:9000}
+      BOQPRO_OBJECT_STORAGE_BUCKET: ${BOQPRO_OBJECT_STORAGE_BUCKET:-boqpro}
+      BOQPRO_OBJECT_STORAGE_ACCESS_KEY: ${BOQPRO_OBJECT_STORAGE_ACCESS_KEY:-boqpro}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    security_opt:
+      - no-new-privileges:true
     volumes:
       - boqpro_storage:/app/storage
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
 
   web:
     build:
@@ -56,9 +52,10 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - api
+    restart: unless-stopped
 
   caddy:
     image: caddy:2.8-alpine
@@ -78,7 +75,6 @@ services:
 
 volumes:
   boqpro_postgres:
-  boqpro_minio:
   boqpro_storage:
   boqpro_caddy_data:
   boqpro_caddy_config:

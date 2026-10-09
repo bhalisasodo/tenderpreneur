@@ -596,6 +596,20 @@ async def submit_quote(
             detail={"code": "REQUEST_NOT_FOUND", "message": "Quote request not found or not assigned to you."},
         )
 
+    supplier_profile_stmt = select(SupplierProfile).where(
+        SupplierProfile.organisation_id == auth.organisation_id
+    )
+    profile_res = await db.execute(supplier_profile_stmt)
+    supplier_profile = profile_res.scalar_one_or_none()
+    if not supplier_profile or supplier_profile.status != "approved" or not supplier_profile.active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "SUPPLIER_NOT_APPROVED",
+                "message": "This supplier account is not approved to submit quotes.",
+            },
+        )
+
     # Server-side deadline check
     if check_is_expired(qr.response_deadline):
         raise HTTPException(

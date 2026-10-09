@@ -27,6 +27,9 @@ def test_production_debug_mode_disabled():
             environment="production",
             debug=True,
             jwt_secret="a_super_strong_cryptographic_secret_key_of_length_greater_than_32",
+            password_salt="a_super_strong_cryptographic_salt_key_of_length_greater_than_32",
+            database_url="postgresql+psycopg://boqpro:secret@postgres:5432/boqpro",
+            cors_origins=["https://app.boqpro.co.za"],
         )
     assert "Production security violation" in str(exc_info.value)
     assert "BOQPRO_DEBUG" in str(exc_info.value)
@@ -38,9 +41,41 @@ def test_production_valid_configuration_passes():
         environment="production",
         debug=False,
         jwt_secret="a_super_strong_cryptographic_secret_key_of_length_greater_than_32",
+        password_salt="a_super_strong_cryptographic_salt_key_of_length_greater_than_32",
+        database_url="postgresql+psycopg://boqpro:secret@postgres:5432/boqpro",
+        cors_origins=["https://app.boqpro.co.za"],
     )
     assert valid_settings.environment == "production"
     assert valid_settings.debug is False
+    assert valid_settings.database_url.startswith("postgresql")
+
+
+def test_production_password_salt_enforcement():
+    """Verify production rejects placeholder or short password salts."""
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(
+            environment="production",
+            debug=False,
+            jwt_secret="a_super_strong_cryptographic_secret_key_of_length_greater_than_32",
+            password_salt="boqpro-default-salt-change-in-production",
+            database_url="postgresql+psycopg://boqpro:secret@postgres:5432/boqpro",
+            cors_origins=["https://app.boqpro.co.za"],
+        )
+    assert "BOQPRO_PASSWORD_SALT" in str(exc_info.value)
+
+
+def test_production_requires_https_cors_origins():
+    """Verify production rejects unsafe or private CORS origins."""
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(
+            environment="production",
+            debug=False,
+            jwt_secret="a_super_strong_cryptographic_secret_key_of_length_greater_than_32",
+            password_salt="a_super_strong_cryptographic_salt_key_of_length_greater_than_32",
+            database_url="postgresql+psycopg://boqpro:secret@postgres:5432/boqpro",
+            cors_origins=["http://localhost:3000"],
+        )
+    assert "CORS origins" in str(exc_info.value)
 
 
 def test_cors_origins_parsing_from_string():

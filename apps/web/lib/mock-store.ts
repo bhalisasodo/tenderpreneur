@@ -553,6 +553,7 @@ export class MockStore {
       service_regions: sp.regions,
       compliance_flags: { csd_registered: true, bbee_level: "1" },
       preferred_contact_method: "whatsapp",
+      status: "approved",
       active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

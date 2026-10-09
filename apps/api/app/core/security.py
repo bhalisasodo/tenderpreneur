@@ -150,3 +150,12 @@ def require_supplier(auth: AuthContext = Depends(get_current_auth)) -> AuthConte
             detail={"code": "FORBIDDEN", "message": "Action requires supplier organisation permissions."},
         )
     return auth
+
+
+def require_platform_admin(auth: AuthContext = Depends(get_current_auth)) -> AuthContext:
+    if auth.role != "platform_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "Action requires platform administrator permissions."},
+        )
+    return auth
