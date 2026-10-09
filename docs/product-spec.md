@@ -102,9 +102,11 @@ Exports should be evidence-based: quote reference, supplier, price, timestamp an
 
 ## 9. Open product decisions
 
-These remain intentionally unresolved:
+The following decisions are resolved for the initial supplier liquidity pilot:
 
-- Initial 1–2 supplier categories.
-- Initial launch region.
-- Supplier recruitment approach.
-- Whether compliance evidence is mandatory at MVP or deferred.
+- **Launch region:** eThekwini (Durban) metro.
+- **Active category:** General building materials and civils: cement, aggregate/stone and sand, reinforcing steel, and bricks/blocks.
+- **Held in reserve:** Electrical supplies and fittings; do not activate until the first-category pilot gate is met.
+- **Recruitment:** Concierge-led, free pilot with a controlled pool of 5–10 suppliers; invite at least 6 eligible suppliers for the active category and aim toward 8–10 to buffer non-response.
+- **Compliance:** Optional, self-declared profile details only. Mandatory evidence and third-party verification remain deferred.
+- **Pilot bar:** At least 15 live RFQs over 4–6 weeks; at least 70% receive 2 or more valid quotes before their 24–48 hour deadline. Track the share reaching the 3-quote liquidity target and median time to first quote as additional signals. Include unmatched and zero-response live RFQs in the denominator.

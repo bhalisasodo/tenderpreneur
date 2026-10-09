@@ -150,7 +150,13 @@ export default function Navbar() {
                 : "text-slate-300 hover:text-white hover:bg-slate-800/80"
             }`}
           >
-            🧱 Supplier Portal (Mobile)
+            🧱 Supplier Inbox
+          </Link>
+          <Link
+            href="/supplier/register"
+            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition shadow-sm ml-1"
+          >
+            + Supplier Signup
           </Link>
           {currentSession?.user.role === "platform_operator" && (
             <Link

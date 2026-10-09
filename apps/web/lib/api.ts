@@ -26,25 +26,37 @@ export interface AuthSession {
   organisation: OrganisationDTO;
 }
 
-export interface SupplierRegistrationDTO {
-  organisation_id: string;
-  user_id: string;
-  status: "pending_approval";
-  message: string;
-}
+export type SupplierProfileStatus = "pending" | "approved" | "rejected" | "suspended";
 
-export interface SupplierReviewDTO {
+export interface SupplierProfileDTO {
   id: string;
   organisation_id: string;
+  categories: string[];
+  service_regions: string[];
+  compliance_flags: Record<string, any>;
+  preferred_contact_method: string;
+  status: SupplierProfileStatus;
+  active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SupplierRegisterPayload {
   legal_name: string;
   trading_name?: string;
   email: string;
-  phone?: string;
+  phone: string;
   region: string;
+  contact_name: string;
+  password: string;
   categories: string[];
   service_regions: string[];
-  approval_status: string;
-  active: boolean;
+  preferred_contact_method?: string;
+  compliance_flags?: Record<string, any>;
+}
+
+export interface SupplierRegisterResponseDTO extends AuthSession {
+  profile?: SupplierProfileDTO;
 }
 
 export interface LineItemDTO {
@@ -235,6 +247,16 @@ class ApiClient {
     if (typeof window === "undefined") return null;
     let token = localStorage.getItem("tp_token");
     if (!token) {
+      if (typeof window !== "undefined" && window.location.search) {
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlToken = urlParams.get("access_token");
+          if (urlToken) {
+            localStorage.setItem("tp_token", urlToken);
+            return urlToken;
+          }
+        } catch {}
+      }
       const demoEmails = [
         "estimator@amandlacivils.co.za",
         "estimator@amandla.co.za",
@@ -342,7 +364,7 @@ class ApiClient {
   }
 
   // Auth
-  async login(email: string, password = "password"): Promise<AuthSession> {
+  async login(email: string, password: string = "password"): Promise<AuthSession> {
     if (this.isMockMode()) return mockStore.login(email);
     try {
       const res = await this.request<AuthSession>("/auth/login", {
@@ -354,8 +376,52 @@ class ApiClient {
         localStorage.setItem("tp_session", JSON.stringify(res));
       }
       return res;
+    } catch (err) {
+      if (this.isMockMode()) {
+        return mockStore.login(email);
+      }
+      throw err;
+    }
+  }
+
+  async registerSupplier(payload: SupplierRegisterPayload): Promise<SupplierRegisterResponseDTO> {
+    if (this.isMockMode()) return mockStore.registerSupplier(payload);
+    try {
+      const res = await this.request<SupplierRegisterResponseDTO>("/auth/register-supplier", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      if (typeof window !== "undefined") {
+        localStorage.setItem("tp_token", res.access_token);
+        localStorage.setItem("tp_session", JSON.stringify(res));
+      }
+      return res;
+    } catch (err) {
+      if (this.isMockMode()) {
+        return mockStore.registerSupplier(payload);
+      }
+      throw err;
+    }
+  }
+
+  async getSupplierProfile(): Promise<SupplierProfileDTO> {
+    if (this.isMockMode()) return mockStore.getSupplierProfile();
+    try {
+      return await this.request<SupplierProfileDTO>("/suppliers/profile");
     } catch {
-      return mockStore.login(email);
+      return mockStore.getSupplierProfile();
+    }
+  }
+
+  async updateSupplierProfile(payload: Partial<SupplierProfileDTO>): Promise<SupplierProfileDTO> {
+    if (this.isMockMode()) return mockStore.updateSupplierProfile(payload);
+    try {
+      return await this.request<SupplierProfileDTO>("/suppliers/profile", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      return mockStore.updateSupplierProfile(payload);
     }
   }
 

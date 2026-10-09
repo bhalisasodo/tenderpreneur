@@ -31,7 +31,7 @@ app/integrations/notifications/__init__.py
 app/integrations/notifications/base.py
 app/integrations/notifications/console.py
 app/integrations/notifications/email.py
-app/integrations/storage/__init__.py
+app/integrations/notifications/webhook.py
 app/schemas/__init__.py
 app/schemas/audit.py
 app/schemas/auth.py
@@ -58,11 +58,9 @@ tests/test_matching.py
 tests/test_multipage_pdf_parser.py
 tests/test_mvp_verification_loop.py
 tests/test_noise_filtering.py
-tests/test_notifications.py
 tests/test_persona_lifecycle.py
 tests/test_production_readiness.py
 tests/test_quote_simulator.py
 tests/test_quotes.py
 tests/test_safety_gate_and_extraction.py
-tests/test_storage.py
-tests/test_supplier_approval.py
+tests/test_supplier_onboarding_and_quoting.py

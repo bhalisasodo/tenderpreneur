@@ -141,7 +141,7 @@ async def seed_database():
                 service_regions=s["regions"],
                 compliance_flags=s["compliance"],
                 preferred_contact_method=s["contact"],
-                approval_status="approved",
+                status="approved",
                 active=True,
                 created_at=now,
                 updated_at=now,

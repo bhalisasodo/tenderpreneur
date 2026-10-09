@@ -57,6 +57,20 @@ export default function Home() {
         <p className="max-w-2xl mx-auto text-sm sm:text-base text-slate-600 leading-relaxed">
           Upload any Bill of Quantities or scope of work → get structured parsed line items → match verified local suppliers → compare competitive quotes → export a defensible, audit-backed tender submission.
         </p>
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
+          <Link
+            href="/contractor/boqs/new"
+            className="px-5 py-2.5 rounded-xl bg-[#12233F] hover:bg-[#1a335a] text-white font-bold text-xs sm:text-sm shadow transition"
+          >
+            Upload BoQ Schedule &rarr;
+          </Link>
+          <Link
+            href="/supplier/register"
+            className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow transition"
+          >
+            🧱 Register as Supplier &rarr;
+          </Link>
+        </div>
       </div>
 
       {/* Core Marketplace Loop Diagram / Steps */}
@@ -123,12 +137,18 @@ export default function Home() {
               View active quote requests matched to your trade category and province. Submit line-item prices before the countdown deadline with turnaround notes.
             </p>
           </div>
-          <div className="pt-6">
+          <div className="pt-6 space-y-2">
+            <Link
+              href="/supplier/register"
+              className="block w-full text-center py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow transition"
+            >
+              Register as Supplier &rarr;
+            </Link>
             <Link
               href="/supplier"
-              className="block w-full text-center py-3 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-sm shadow transition"
+              className="block w-full text-center py-2 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition"
             >
-              Enter Supplier Portal (Mobile) &rarr;
+              View Supplier Inbox
             </Link>
           </div>
         </div>

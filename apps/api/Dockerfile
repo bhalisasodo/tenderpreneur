@@ -14,16 +14,23 @@ COPY pyproject.toml /app/
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir ".[postgres]"
 
-# Copy application source code
+# Copy application source code and database migration configuration
 COPY app /app/app
+COPY alembic.ini /app/alembic.ini
+COPY alembic /app/alembic
 
 # Set environment defaults
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000
 
-# Create storage directory for local fallback storage provider
-RUN mkdir -p /app/storage
+# Create storage directory and run the API as a non-root user
+RUN mkdir -p /app/storage && \
+    addgroup --system --gid 1001 app && \
+    adduser --system --uid 1001 --ingroup app app && \
+    chown -R app:app /app
+
+USER app
 
 EXPOSE 8000
 
