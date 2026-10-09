@@ -19,7 +19,7 @@ from app.seed import seed_database
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if settings.environment != "testing":
+    if settings.environment not in ("testing", "production", "prod"):
         # Initialize database tables on startup (especially for SQLite dev mode)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)

@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from app.core.database import AsyncSessionLocal, engine, Base
+from app.core.security import hash_password
 from app.core.models import (
     BoQ,
     Document,
@@ -51,6 +52,7 @@ async def seed_database():
             email="estimator@amandlacivils.co.za",
             name="Sipho Ndlovu",
             role="admin",
+            password_hash=hash_password("password"),
             created_at=now,
             updated_at=now,
         )
@@ -126,6 +128,7 @@ async def seed_database():
                 email=s["email"],
                 name=f"{s['trading_name']} Representative",
                 role="admin",
+                password_hash=hash_password("password"),
                 created_at=now,
                 updated_at=now,
             )
@@ -138,6 +141,7 @@ async def seed_database():
                 service_regions=s["regions"],
                 compliance_flags=s["compliance"],
                 preferred_contact_method=s["contact"],
+                approval_status="approved",
                 active=True,
                 created_at=now,
                 updated_at=now,

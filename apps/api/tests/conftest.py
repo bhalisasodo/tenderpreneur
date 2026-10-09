@@ -30,7 +30,7 @@ from app.core.models import (
     generate_uuid,
     utc_now,
 )
-from app.core.security import create_access_token
+from app.core.security import create_access_token, hash_password
 from app.main import app
 
 test_engine = create_async_engine(
@@ -104,6 +104,7 @@ async def seeded_entities(db_session: AsyncSession):
         email="estimator@amandla.co.za",
         name="Sipho Contractor",
         role="admin",
+        password_hash=hash_password("password"),
         created_at=now,
         updated_at=now,
     )
@@ -206,6 +207,18 @@ async def seeded_entities(db_session: AsyncSession):
     )
     db_session.add(other_user)
 
+    operator_user = User(
+        id=generate_uuid(),
+        organisation_id=contractor_org.id,
+        email="operator@boqpro.co.za",
+        name="BoQPro Operator",
+        role="platform_operator",
+        password_hash=hash_password("password"),
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(operator_user)
+
     await db_session.commit()
 
     # Create tokens
@@ -233,6 +246,13 @@ async def seeded_entities(db_session: AsyncSession):
         organisation_type="contractor",
         email=other_user.email,
     )
+    operator_token = create_access_token(
+        user_id=operator_user.id,
+        organisation_id=contractor_org.id,
+        organisation_type="contractor",
+        email=operator_user.email,
+        role="platform_operator",
+    )
 
     return {
         "contractor_org": contractor_org,
@@ -244,4 +264,5 @@ async def seeded_entities(db_session: AsyncSession):
         "supplier2_token": supplier2_token,
         "other_contractor_org": other_contractor_org,
         "other_token": other_token,
+        "operator_token": operator_token,
     }

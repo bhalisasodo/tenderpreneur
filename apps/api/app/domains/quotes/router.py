@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import List, Optional
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,7 @@ from app.core.models import (
     AuditEvent,
     BoQ,
     LineItem,
+    NotificationDelivery,
     Organisation,
     Quote,
     QuoteRequest,
@@ -22,6 +24,7 @@ from app.domains.audit.service import log_audit_event
 from app.domains.matching.service import match_suppliers_for_item
 from app.domains.quotes.simulator import simulate_all_quotes_for_boq, simulate_supplier_quotes_for_request
 from app.integrations.notifications import get_notification_provider
+from app.core.config import settings
 from pydantic import BaseModel
 
 from app.domains.parsing.segmentation import is_text_corrupted
@@ -38,6 +41,7 @@ from app.schemas.quotes import (
 )
 
 router = APIRouter(tags=["Quotes"])
+logger = logging.getLogger("boqpro.quotes")
 
 
 class ValidateBroadcastRequest(BaseModel):
@@ -225,7 +229,6 @@ async def broadcast_quote_request(
             qrs = QuoteRequestSupplier(
                 quote_request_id=qr.id,
                 supplier_organisation_id=sup_id,
-                delivered_at=utc_now(),
                 status="sent",
             )
             db.add(qrs)
@@ -235,17 +238,48 @@ async def broadcast_quote_request(
             sup_res = await db.execute(sup_stmt)
             supplier_org = sup_res.scalar_one_or_none()
             if supplier_org:
-                await notification_provider.send_quote_request_notification(
-                    supplier_id=supplier_org.id,
-                    supplier_name=supplier_org.legal_name,
-                    supplier_contact=supplier_org.phone or supplier_org.email,
-                    channel="whatsapp",
-                    boq_title=boq.title,
-                    line_item_description=line_item.description,
-                    quantity=line_item.quantity,
-                    unit=line_item.unit,
-                    response_deadline_iso=qr.response_deadline.isoformat(),
-                    submission_link=f"/supplier/quote-requests/{qr.id}",
+                channel = "email"
+                if supplier_org.supplier_profile:
+                    channel = supplier_org.supplier_profile.preferred_contact_method or "email"
+                if settings.notification_provider.lower() in ("email", "smtp"):
+                    channel = "email"
+                recipient = supplier_org.email if channel == "email" else (supplier_org.phone or supplier_org.email)
+                delivery_status = "failed"
+                error_message = None
+                try:
+                    delivered = await notification_provider.send_quote_request_notification(
+                        supplier_id=supplier_org.id,
+                        supplier_name=supplier_org.legal_name,
+                        supplier_contact=recipient,
+                        channel=channel,
+                        boq_title=boq.title,
+                        line_item_description=line_item.description,
+                        quantity=line_item.quantity,
+                        unit=line_item.unit,
+                        response_deadline_iso=qr.response_deadline.isoformat(),
+                        submission_link=f"{settings.public_app_url.rstrip('/')}/supplier/quote-requests/{qr.id}",
+                    )
+                    if delivered:
+                        delivery_status = "sent"
+                        qrs.delivered_at = utc_now()
+                        qrs.status = "sent"
+                    else:
+                        qrs.status = "failed"
+                except Exception as exc:
+                    error_message = str(exc)
+                    qrs.status = "failed"
+                    logger.exception("Notification dispatch failed for quote request %s", qr.id)
+
+                db.add(
+                    NotificationDelivery(
+                        quote_request_id=qr.id,
+                        supplier_organisation_id=supplier_org.id,
+                        channel=channel,
+                        recipient=recipient,
+                        status=delivery_status,
+                        error_message=error_message,
+                        attempted_at=utc_now(),
+                    )
                 )
 
     await log_audit_event(

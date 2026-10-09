@@ -111,6 +111,7 @@ export default function Navbar() {
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
   const isContractorView = pathname.startsWith("/contractor");
   const isSupplierView = pathname.startsWith("/supplier");
+  const isOperatorView = pathname.startsWith("/operator");
 
   return (
     <header className="bg-[#12233F] text-white border-b border-[#1f3760] sticky top-0 z-50 shadow-md">
@@ -151,6 +152,18 @@ export default function Navbar() {
           >
             🧱 Supplier Portal (Mobile)
           </Link>
+          {currentSession?.user.role === "platform_operator" && (
+            <Link
+              href="/operator/suppliers"
+              className={`px-3 py-1.5 rounded-lg transition ${
+                isOperatorView
+                  ? "bg-[#D9A94A] text-[#12233F] font-bold shadow-sm"
+                  : "text-slate-300 hover:text-white hover:bg-slate-800/80"
+              }`}
+            >
+              Supplier Review
+            </Link>
+          )}
         </nav>
 
         {/* Global Persona Switcher & API Status */}

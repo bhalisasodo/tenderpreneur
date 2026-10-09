@@ -47,6 +47,11 @@ export default function SupplierDashboard() {
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end">
+        <a href="/supplier/register" className="text-sm font-semibold text-emerald-700 underline">
+          Register as a Durban supplier
+        </a>
+      </div>
       {/* Supplier Identity Banner */}
       {session && (
         <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white p-5 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">

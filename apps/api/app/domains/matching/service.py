@@ -20,7 +20,7 @@ async def match_suppliers_for_item(
     stmt = (
         select(SupplierProfile)
         .options(selectinload(SupplierProfile.organisation))
-        .where(SupplierProfile.active.is_(True))
+        .where(SupplierProfile.active.is_(True), SupplierProfile.approval_status == "approved")
     )
     result = await db.execute(stmt)
     profiles = result.scalars().all()

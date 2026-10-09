@@ -26,6 +26,27 @@ export interface AuthSession {
   organisation: OrganisationDTO;
 }
 
+export interface SupplierRegistrationDTO {
+  organisation_id: string;
+  user_id: string;
+  status: "pending_approval";
+  message: string;
+}
+
+export interface SupplierReviewDTO {
+  id: string;
+  organisation_id: string;
+  legal_name: string;
+  trading_name?: string;
+  email: string;
+  phone?: string;
+  region: string;
+  categories: string[];
+  service_regions: string[];
+  approval_status: string;
+  active: boolean;
+}
+
 export interface LineItemDTO {
   id: string;
   boq_id: string;
@@ -321,12 +342,12 @@ class ApiClient {
   }
 
   // Auth
-  async login(email: string): Promise<AuthSession> {
+  async login(email: string, password = "password"): Promise<AuthSession> {
     if (this.isMockMode()) return mockStore.login(email);
     try {
       const res = await this.request<AuthSession>("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, password }),
       });
       if (typeof window !== "undefined") {
         localStorage.setItem("tp_token", res.access_token);
@@ -336,6 +357,41 @@ class ApiClient {
     } catch {
       return mockStore.login(email);
     }
+  }
+
+  async registerSupplier(data: {
+    legal_name: string;
+    trading_name?: string;
+    contact_name: string;
+    email: string;
+    phone: string;
+    password: string;
+    categories: string[];
+    service_regions: string[];
+    preferred_contact_method: string;
+  }): Promise<SupplierRegistrationDTO> {
+    return this.request<SupplierRegistrationDTO>("/auth/supplier-registration", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listSupplierReviewQueue(): Promise<SupplierReviewDTO[]> {
+    return this.request<SupplierReviewDTO[]>("/suppliers/review");
+  }
+
+  async approveSupplier(organisationId: string, reason: string): Promise<SupplierReviewDTO> {
+    return this.request<SupplierReviewDTO>(`/suppliers/${organisationId}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async suspendSupplier(organisationId: string, reason: string): Promise<SupplierReviewDTO> {
+    return this.request<SupplierReviewDTO>(`/suppliers/${organisationId}/suspend`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
   }
 
   async getMe(): Promise<AuthSession> {

@@ -37,6 +37,14 @@ services:
       BOQPRO_DEBUG: "false"
       BOQPRO_STORAGE_TYPE: local
       BOQPRO_JWT_SECRET: dev-secret-key-change-in-production-must-be-32-chars-long
+      BOQPRO_OPERATOR_EMAILS: ${BOQPRO_OPERATOR_EMAILS:-bhalisasodo10@gmail.com}
+      BOQPRO_PUBLIC_APP_URL: ${BOQPRO_PUBLIC_APP_URL:-http://localhost:3000}
+      BOQPRO_NOTIFICATION_PROVIDER: ${BOQPRO_NOTIFICATION_PROVIDER:-console}
+      BOQPRO_SMTP_HOST: ${BOQPRO_SMTP_HOST:-}
+      BOQPRO_SMTP_PORT: ${BOQPRO_SMTP_PORT:-587}
+      BOQPRO_SMTP_USERNAME: ${BOQPRO_SMTP_USERNAME:-}
+      BOQPRO_SMTP_PASSWORD: ${BOQPRO_SMTP_PASSWORD:-}
+      BOQPRO_SMTP_FROM_EMAIL: ${BOQPRO_SMTP_FROM_EMAIL:-noreply@boqpro.co.za}
     ports:
       - "8000:8000"
     volumes:

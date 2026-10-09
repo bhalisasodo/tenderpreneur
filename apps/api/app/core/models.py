@@ -66,6 +66,7 @@ class SupplierProfile(Base):
     service_regions = Column(JSON, nullable=False, default=list)  # list[str] e.g. ["KwaZulu-Natal"]
     compliance_flags = Column(JSON, nullable=False, default=dict)  # dict e.g. {"bbee_level": "1"}
     preferred_contact_method = Column(String(20), nullable=False, default="whatsapp")  # "whatsapp"|"email"|"sms"
+    approval_status = Column(String(30), nullable=False, default="approved")  # pending | approved | suspended | rejected
     active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
@@ -156,10 +157,23 @@ class QuoteRequestSupplier(Base):
     supplier_organisation_id = Column(String(36), ForeignKey("organisations.id"), nullable=False, index=True)
     delivered_at = Column(DateTime(timezone=True), nullable=True)
     viewed_at = Column(DateTime(timezone=True), nullable=True)
-    status = Column(String(50), nullable=False, default="sent")  # sent | viewed | submitted | declined
+    status = Column(String(50), nullable=False, default="sent")  # sent | failed | viewed | submitted | declined
 
     quote_request = relationship("QuoteRequest", back_populates="suppliers", lazy="selectin")
     supplier_organisation = relationship("Organisation", lazy="selectin")
+
+
+class NotificationDelivery(Base):
+    __tablename__ = "notification_deliveries"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    quote_request_id = Column(String(36), ForeignKey("quote_requests.id"), nullable=False, index=True)
+    supplier_organisation_id = Column(String(36), ForeignKey("organisations.id"), nullable=False, index=True)
+    channel = Column(String(20), nullable=False)
+    recipient = Column(String(255), nullable=False)
+    status = Column(String(20), nullable=False)  # sent | failed
+    error_message = Column(Text, nullable=True)
+    attempted_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
 class Quote(Base):

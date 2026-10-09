@@ -1,7 +1,8 @@
 import os
 from typing import Any, List, Optional, Union
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from pydantic import Field, field_validator, model_validator
+from typing import Annotated
 
 
 class Settings(BaseSettings):
@@ -19,6 +20,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
     rate_limit_auth_per_minute: int = 20
+    operator_emails: Annotated[List[str], NoDecode] = Field(default_factory=list)
 
     # File Storage & Ingestion Limits
     storage_type: str = "local"  # "local" or "s3"
@@ -43,6 +45,7 @@ class Settings(BaseSettings):
     smtp_password: Optional[str] = None
     smtp_use_tls: bool = True
     smtp_from_email: str = "noreply@boqpro.co.za"
+    public_app_url: str = "http://localhost:3000"
 
     # BoQ Parser Configuration
     parser_high_confidence_threshold: float = 0.80
@@ -60,6 +63,13 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
 
+    @field_validator("operator_emails", mode="before")
+    @classmethod
+    def parse_operator_emails(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            return [email.strip().lower() for email in v.split(",") if email.strip()]
+        return [email.strip().lower() for email in v]
+
     @model_validator(mode="before")
     @classmethod
     def fallback_legacy_env_vars(cls, data: Any) -> Any:
@@ -68,12 +78,13 @@ class Settings(BaseSettings):
         # Support fallback from legacy TENDERPRENEUR_* env vars if BOQPRO_* was not provided
         field_keys = [
             "environment", "debug", "database_url", "jwt_secret", "jwt_algorithm",
-            "jwt_expire_minutes", "rate_limit_auth_per_minute", "storage_type",
+            "jwt_expire_minutes", "rate_limit_auth_per_minute", "operator_emails", "storage_type",
             "local_storage_path", "object_storage_endpoint", "object_storage_bucket",
             "object_storage_access_key", "object_storage_secret_key", "max_upload_size_bytes",
             "llm_provider", "openai_api_key", "gemini_api_key", "gemini_model",
             "notification_provider", "smtp_host", "smtp_port", "smtp_username",
             "smtp_password", "smtp_use_tls", "smtp_from_email",
+            "public_app_url",
             "parser_high_confidence_threshold", "parser_low_confidence_threshold",
             "cors_origins",
         ]
