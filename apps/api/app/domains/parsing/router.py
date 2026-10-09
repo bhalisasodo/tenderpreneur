@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.models import BoQ, Document, LineItem, utc_now
 from app.core.security import AuthContext, require_contractor
@@ -111,6 +112,22 @@ async def parse_boq_document(
             clean_message = (
                 "We couldn't read this file — it contains unreadable binary data. "
                 "Please upload a standard Excel (.xlsx) or text-based PDF document."
+            )
+        elif "LLM_PROVIDER_NOT_CONFIGURED" in raw_err:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": "PARSER_NOT_CONFIGURED",
+                    "message": "The configured document parser is unavailable. Contact the platform administrator.",
+                },
+            )
+        elif "LLM_PROVIDER_ERROR" in raw_err:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "code": "PARSER_PROVIDER_ERROR",
+                    "message": "The configured document parser could not complete this request. Please try again later.",
+                },
             )
         else:
             err_code = "GARBLED_DOCUMENT_TEXT"
@@ -253,14 +270,26 @@ async def parse_boq_file(
             detail={"code": "BOQ_NOT_FOUND", "message": "BoQ not found."},
         )
 
-    doc_bytes = await file.read()
+    filename = file.filename or "uploaded_document"
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if extension not in {"pdf", "xlsx", "xls", "csv", "txt"}:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail={"code": "UNSUPPORTED_FILE_TYPE", "message": "Upload a PDF, Excel, CSV, or plain-text BoQ file."},
+        )
+
+    doc_bytes = await file.read(settings.max_upload_size_bytes + 1)
+    if len(doc_bytes) > settings.max_upload_size_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail={"code": "FILE_TOO_LARGE", "message": "The uploaded file exceeds the configured size limit."},
+        )
     if not doc_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "EMPTY_FILE", "message": "Uploaded file is empty."},
         )
 
-    filename = file.filename or "uploaded_document"
     mime_type = file.content_type or "application/octet-stream"
 
     # Pre-check for binary files disguised as text/csv
@@ -340,10 +369,10 @@ async def parse_boq_file(
             detail={"code": err_code, "message": clean_message},
         )
 
-    if not parse_result.line_items:
+    if not parse_result.line_items and not parse_result.excluded_candidates:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "PARSING_FAILED", "message": "Could not extract any valid line items from the document."},
+            detail={"code": "PARSING_FAILED", "message": "Could not identify any reviewable line items in the document."},
         )
 
     if boq.title == "New Tender BoQ" and parse_result.title_hint:
@@ -417,4 +446,3 @@ async def parse_boq_file(
     await db.commit()
     await db.refresh(boq)
     return BoQResponse.model_validate(boq)
-

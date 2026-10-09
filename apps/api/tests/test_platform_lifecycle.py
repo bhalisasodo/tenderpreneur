@@ -4,20 +4,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.asyncio
-async def test_demo_tenants_endpoint(client: AsyncClient, seeded_entities: dict):
-    """Verify demo-tenants endpoint lists all seeded contractor and supplier users."""
+async def test_demo_tenants_endpoint_is_removed(client: AsyncClient):
+    """Demo account discovery must not be exposed by the authentication API."""
     res = await client.get("/api/v1/auth/demo-tenants")
-    assert res.status_code == 200
-    tenants = res.json()
-    assert len(tenants) >= 3
+    assert res.status_code == 404
 
-    org_types = [t["organisation"]["type"] for t in tenants]
-    assert "contractor" in org_types
-    assert "supplier" in org_types
 
-    emails = [t["email"] for t in tenants]
-    assert any("amandla" in e for e in emails)
-    assert any("durban" in e for e in emails)
+@pytest.mark.asyncio
+async def test_quote_simulation_endpoints_are_removed(client: AsyncClient, seeded_entities: dict):
+    headers = {"Authorization": f"Bearer {seeded_entities['contractor_token']}"}
+    request_response = await client.post(
+        "/api/v1/quote-requests/example/simulate-responses",
+        headers=headers,
+    )
+    boq_response = await client.post(
+        "/api/v1/boqs/example/simulate-quotes",
+        headers=headers,
+    )
+    assert request_response.status_code == 404
+    assert boq_response.status_code == 404
 
 
 @pytest.mark.asyncio

@@ -38,7 +38,7 @@ For each item, identify:
 2. section_name: The Bill / Section header (e.g. 'Bill No. 1: Earthworks', 'Bill No. 2: Concrete, Formwork & Rebar', 'Bill No. 3: Masonry', 'Bill No. 4: Roofing', 'Bill No. 5: Plumbing', 'Bill No. 6: Electrical').
 3. description: The clear description of the material, labour, or work.
 4. unit: Normalized unit of measurement (e.g. 'm2', 'm3', 'kg', 'no', 'sum', 'm', 'ton', 'hr', 'day', 'item').
-5. quantity: Numeric quantity (float). Default to 1.0 if not specified.
+5. quantity: Numeric quantity (float). Never guess a missing quantity; use 1.0 only when the source explicitly says one.
 6. category: One of standard trade categories:
    - "building-materials" (bricks, cement, sand, stone, masonry)
    - "concrete" (ready-mix, rebar, mesh, formwork, slabs)
@@ -90,7 +90,7 @@ RESPONSE_SCHEMA = {
 
 
 class GeminiLLMProvider:
-    """Production LLM Provider using Google Gemini API with multimodal PDF support and fallback to StubLLMProvider."""
+    """Gemini-backed parser for text and multimodal documents."""
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or settings.gemini_api_key
@@ -120,12 +120,15 @@ class GeminiLLMProvider:
                 continue
 
             unit = self._normalize_unit(item.get("unit", "no"))
+            quantity_was_supplied = "quantity" in item and item["quantity"] is not None
             try:
-                qty = float(item.get("quantity", 1.0))
+                qty = float(item["quantity"]) if quantity_was_supplied else 1.0
             except (ValueError, TypeError):
                 qty = 1.0
+                quantity_was_supplied = False
 
-            cat = item.get("category", "general-building").strip().lower()
+            raw_category = item.get("category", "general-building")
+            cat = raw_category.strip().lower() if isinstance(raw_category, str) else "general-building"
             ref = item.get("source_row_reference") or f"Item-{idx}"
             sec = item.get("section_name") or "General Scope"
             if sec and sec not in sections_detected:
@@ -147,7 +150,11 @@ class GeminiLLMProvider:
             high_thresh = getattr(settings, "parser_high_confidence_threshold", 0.80)
             low_thresh = getattr(settings, "parser_low_confidence_threshold", 0.50)
 
-            if not is_valid or combined_conf < low_thresh:
+            if not quantity_was_supplied or not item.get("unit"):
+                review_status = "needs_review"
+                exclusion_reason = "Confirm the source quantity and unit; one or both were missing or unreadable."
+                combined_conf = min(combined_conf, 0.55)
+            elif not is_valid or combined_conf < low_thresh:
                 review_status = "excluded"
                 exclusion_reason = exclusion_reason or "Low confidence non-priceable candidate"
             elif combined_conf >= high_thresh and review_status != "needs_review":
@@ -204,8 +211,12 @@ class GeminiLLMProvider:
         context: Optional[dict] = None,
     ) -> ParseResultDTO:
         if not self.api_key:
-            logger.info("No GEMINI_API_KEY configured; falling back to StubLLMProvider.")
-            return await self.stub_fallback.parse_boq_document(extracted_text, filename, context)
+            logger.info("Gemini API key missing; falling back to the stub parser.")
+            return await self.stub_fallback.parse_boq_document(
+                extracted_text=extracted_text,
+                filename=filename,
+                context=context,
+            )
 
         # Pre-extraction sanity check for garbled or corrupted text
         from app.domains.parsing.segmentation import is_text_corrupted
@@ -247,8 +258,8 @@ class GeminiLLMProvider:
                 duration_ms = int((time.time() - start_time) * 1000)
 
                 if response.status_code != 200:
-                    logger.warning("Gemini API returned %s: %s. Falling back to stub.", response.status_code, response.text)
-                    return await self.stub_fallback.parse_boq_document(extracted_text, filename, context)
+                    logger.error("Gemini API returned HTTP %s during text parsing.", response.status_code)
+                    raise ValueError(f"LLM_PROVIDER_ERROR: Gemini returned HTTP {response.status_code}.")
 
                 data = response.json()
                 candidate_text = (
@@ -259,13 +270,15 @@ class GeminiLLMProvider:
                 )
 
                 if not candidate_text:
-                    return await self.stub_fallback.parse_boq_document(extracted_text, filename, context)
+                    raise ValueError("LLM_PROVIDER_ERROR: Gemini returned an empty parsing response.")
 
                 return self._parse_candidate_response(candidate_text, filename, duration_ms)
 
+        except ValueError:
+            raise
         except Exception as e:
-            logger.error("Error during Gemini text parsing: %s. Falling back to stub.", e)
-            return await self.stub_fallback.parse_boq_document(extracted_text, filename, context)
+            logger.exception("Gemini text parsing failed.")
+            raise ValueError("LLM_PROVIDER_ERROR: Gemini could not parse this document.") from e
 
     async def parse_boq_document_bytes(
         self,
@@ -274,6 +287,15 @@ class GeminiLLMProvider:
         filename: Optional[str] = None,
         context: Optional[dict] = None,
     ) -> ParseResultDTO:
+        if not self.api_key:
+            logger.info("Gemini API key missing; falling back to the stub parser for file ingestion.")
+            return await self.stub_fallback.parse_boq_document_bytes(
+                document_bytes=document_bytes,
+                mime_type=mime_type,
+                filename=filename,
+                context=context,
+            )
+
         mime = (mime_type or "").lower()
         fname = (filename or "").lower()
 
@@ -283,10 +305,17 @@ class GeminiLLMProvider:
             det_res = parse_structured_spreadsheet(document_bytes, filename=filename)
             if det_res:
                 return det_res
-            sheet_text = extract_text_from_spreadsheet(document_bytes)
+            sheet_text = extract_text_from_spreadsheet(document_bytes, filename=filename)
             if not sheet_text or not sheet_text.strip():
                 raise ValueError("EMPTY_OR_UNREADABLE_EXCEL: We could not extract any readable rows from this Excel document. Please ensure it is a valid, uncorrupted Excel (.xlsx) file.")
             return await self.parse_boq_document(sheet_text, filename=filename, context=context)
+
+        if "csv" in mime or fname.endswith(".csv"):
+            from app.domains.parsing.spreadsheet import parse_structured_csv
+
+            result = parse_structured_csv(document_bytes, filename=filename)
+            if result:
+                return result
 
         # If it's a PDF and we have an API key, use direct multimodal PDF input
         if self.api_key and ("pdf" in mime or fname.endswith(".pdf")):
@@ -336,9 +365,13 @@ class GeminiLLMProvider:
                         if candidate_text:
                             return self._parse_candidate_response(candidate_text, filename, duration_ms)
                     else:
-                        logger.warning("Gemini multimodal PDF returned %s: %s. Falling back.", response.status_code, response.text)
+                        logger.error("Gemini API returned HTTP %s during multimodal parsing.", response.status_code)
+                        raise ValueError(f"LLM_PROVIDER_ERROR: Gemini returned HTTP {response.status_code}.")
             except Exception as e:
-                logger.error("Error during Gemini multimodal PDF parsing: %s. Falling back.", e)
+                logger.exception("Gemini multimodal parsing failed.")
+                if isinstance(e, ValueError):
+                    raise
+                raise ValueError("LLM_PROVIDER_ERROR: Gemini could not parse this document.") from e
 
         # Fallback to stub / text extraction pipeline
         return await self.stub_fallback.parse_boq_document_bytes(

@@ -293,3 +293,50 @@ async def seeded_entities(db_session: AsyncSession):
         "other_token": other_token,
         "operator_token": operator_token,
     }
+
+
+@pytest.fixture
+async def pending_supplier(db_session: AsyncSession):
+    now = utc_now()
+    organisation = Organisation(
+        id=generate_uuid(),
+        type="supplier",
+        legal_name="Pending Supplier Limited",
+        email="pending@example.co.za",
+        phone="+27820000003",
+        region="KwaZulu-Natal",
+        created_at=now,
+        updated_at=now,
+    )
+    user = User(
+        id=generate_uuid(),
+        organisation_id=organisation.id,
+        email="pending@example.co.za",
+        name="Pending Supplier Contact",
+        role="admin",
+        password_hash=hash_password("SecurePassword2026!"),
+        created_at=now,
+        updated_at=now,
+    )
+    profile = SupplierProfile(
+        id=generate_uuid(),
+        organisation_id=organisation.id,
+        categories=["building-materials", "concrete"],
+        service_regions=["KwaZulu-Natal"],
+        compliance_flags={},
+        preferred_contact_method="email",
+        status="pending",
+        active=False,
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add_all([organisation, user, profile])
+    await db_session.commit()
+    token = create_access_token(
+        user_id=user.id,
+        organisation_id=organisation.id,
+        organisation_type="supplier",
+        email=user.email,
+        role=user.role,
+    )
+    return {"organisation": organisation, "user": user, "profile": profile, "token": token}

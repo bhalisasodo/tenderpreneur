@@ -19,10 +19,15 @@ from app.core.models import (
     utc_now,
 )
 from app.core.config import settings
-from app.core.security import AuthContext, create_rfq_access_token, require_contractor, require_supplier
+from app.core.security import (
+    AuthContext,
+    create_rfq_access_token,
+    require_contractor,
+    require_quote_supplier,
+    require_supplier,
+)
 from app.domains.audit.service import log_audit_event
 from app.domains.matching.service import match_suppliers_for_item
-from app.domains.quotes.simulator import simulate_all_quotes_for_boq, simulate_supplier_quotes_for_request
 from app.integrations.notifications import get_notification_provider
 from pydantic import BaseModel
 
@@ -494,7 +499,7 @@ async def list_supplier_quote_requests(
 @router.get("/suppliers/quote-requests/{quote_request_id}", response_model=QuoteRequestResponse)
 async def get_supplier_quote_request(
     quote_request_id: str,
-    auth: AuthContext = Depends(require_supplier),
+    auth: AuthContext = Depends(require_quote_supplier),
     db: AsyncSession = Depends(get_db),
 ):
     if auth.is_rfq_direct and auth.rfq_id != quote_request_id:
@@ -581,7 +586,7 @@ async def get_supplier_quote_request(
 async def submit_quote(
     quote_request_id: str,
     payload: QuoteSubmitRequest,
-    auth: AuthContext = Depends(require_supplier),
+    auth: AuthContext = Depends(require_quote_supplier),
     db: AsyncSession = Depends(get_db),
 ):
     if auth.is_rfq_direct and auth.rfq_id != quote_request_id:
@@ -992,44 +997,6 @@ async def override_line_item_price(
         fastest_quote=None,
         selected_quote=None,
     )
-
-
-@router.post("/quote-requests/{id}/simulate-responses", status_code=status.HTTP_200_OK)
-async def simulate_quote_request_responses(
-    id: str,
-    auth: AuthContext = Depends(require_contractor),
-    db: AsyncSession = Depends(get_db),
-):
-    """Demo simulation endpoint: Simulates realistic competitive supplier quote submissions for an open request."""
-    quotes = await simulate_supplier_quotes_for_request(
-        quote_request_id=id,
-        db=db,
-        actor_user_id=auth.user_id,
-    )
-    return {
-        "status": "success",
-        "message": f"Generated {len(quotes)} simulated supplier quote(s).",
-        "quotes_count": len(quotes),
-    }
-
-
-@router.post("/boqs/{id}/simulate-quotes", status_code=status.HTTP_200_OK)
-async def simulate_all_boq_quotes(
-    id: str,
-    auth: AuthContext = Depends(require_contractor),
-    db: AsyncSession = Depends(get_db),
-):
-    """Demo simulation endpoint: Simulates supplier quotes across all open quote requests on a BoQ."""
-    total = await simulate_all_quotes_for_boq(
-        boq_id=id,
-        db=db,
-        actor_user_id=auth.user_id,
-    )
-    return {
-        "status": "success",
-        "message": f"Generated {total} simulated supplier quote(s) across all open requests.",
-        "total_quotes": total,
-    }
 
 
 @router.post("/boqs/{id}/auto-select-best-quotes", status_code=status.HTTP_200_OK)

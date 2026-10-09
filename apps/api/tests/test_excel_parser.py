@@ -3,8 +3,11 @@ import openpyxl
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import ValidationError
 
 from app.core.models import BoQ, generate_uuid
+from app.domains.parsing.spreadsheet import parse_structured_csv
+from app.integrations.llm.base import ParsedLineItemDTO
 from app.integrations.llm.stub import StubLLMProvider
 
 
@@ -46,6 +49,33 @@ async def test_excel_stub_parsing():
     assert any(item.category == "earthworks" for item in result.line_items)
     assert any(item.category == "concrete" for item in result.line_items)
     assert any(item.category == "building-materials" for item in result.line_items)
+    assert {item.source_row_reference for item in result.line_items} >= {
+        "1.01", "1.02", "1.03", "1.04", "1.05", "1.06", "1.07"
+    }
+
+
+def test_csv_parser_uses_headers_and_keeps_source_references():
+    csv_bytes = (
+        b"Item,Description,Quantity,Unit,Rate,Amount\n"
+        b"1.01,Excavation for foundation trenches,350,m3,,\n"
+        b"1.02,Concrete in footings,110,m3,,\n"
+    )
+    result = parse_structured_csv(csv_bytes, filename="schedule.csv")
+    assert result is not None
+    assert [item.source_row_reference for item in result.line_items] == ["1.01", "1.02"]
+    assert result.line_items[0].quantity == 350
+    assert result.line_items[0].unit == "m3"
+
+
+def test_parser_line_item_rejects_missing_unit_and_invalid_quantity():
+    with pytest.raises(ValidationError):
+        ParsedLineItemDTO(description="Concrete in foundations")
+    with pytest.raises(ValidationError):
+        ParsedLineItemDTO(
+            description="Concrete in foundations",
+            unit="m3",
+            quantity=float("inf"),
+        )
 
 
 @pytest.mark.asyncio
@@ -121,6 +151,7 @@ async def test_messy_excel_parsing_with_dots_and_punctuation():
 
     assert result is not None
     assert len(result.line_items) >= 3
-    # Check that item 1.02 got defaulted safely to quantity 1.0 instead of crashing
-    assert all(isinstance(item.quantity, float) for item in result.line_items)
-
+    uncertain_item = next(item for item in result.line_items if item.source_row_reference == "1.02")
+    assert uncertain_item.quantity == 1.0
+    assert uncertain_item.review_status == "needs_review"
+    assert "quantity" in (uncertain_item.exclusion_reason or "")

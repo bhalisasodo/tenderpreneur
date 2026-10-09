@@ -3,40 +3,31 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_supplier_registration_requires_operator_approval(client: AsyncClient, seeded_entities: dict):
-    registration = await client.post(
-        "/api/v1/auth/supplier-registration",
-        json={
-            "legal_name": "Durban Concrete Exchange",
-            "contact_name": "Ayanda Khumalo",
-            "email": "ayanda@durbanconcrete.co.za",
-            "phone": "+27820000003",
-            "password": "a-secure-password",
-            "categories": ["concrete"],
-        },
-    )
-    assert registration.status_code == 201
-    supplier_id = registration.json()["organisation_id"]
+async def test_supplier_approval_requires_platform_operator(
+    client: AsyncClient,
+    seeded_entities: dict,
+    pending_supplier: dict,
+):
+    supplier_id = pending_supplier["organisation"].id
+    contractor_headers = {"Authorization": f"Bearer {seeded_entities['contractor_token']}"}
+    operator_headers = {"Authorization": f"Bearer {seeded_entities['operator_token']}"}
 
     denied = await client.post(
         f"/api/v1/suppliers/{supplier_id}/approve",
         json={"reason": "Should not be contractor-approved"},
-        headers={"Authorization": f"Bearer {seeded_entities['contractor_token']}"},
+        headers=contractor_headers,
     )
     assert denied.status_code == 403
     assert denied.json()["detail"]["code"] == "OPERATOR_REQUIRED"
 
-    queue = await client.get(
-        "/api/v1/suppliers/review",
-        headers={"Authorization": f"Bearer {seeded_entities['operator_token']}"},
-    )
+    queue = await client.get("/api/v1/suppliers/review", headers=operator_headers)
     assert queue.status_code == 200
     assert any(item["organisation_id"] == supplier_id for item in queue.json())
 
     approved = await client.post(
         f"/api/v1/suppliers/{supplier_id}/approve",
-        json={"reason": "Verified Durban concrete supplier for pilot."},
-        headers={"Authorization": f"Bearer {seeded_entities['operator_token']}"},
+        json={"reason": "Verified supplier for the controlled pilot."},
+        headers=operator_headers,
     )
     assert approved.status_code == 200
     assert approved.json()["approval_status"] == "approved"
@@ -44,22 +35,7 @@ async def test_supplier_registration_requires_operator_approval(client: AsyncCli
 
 
 @pytest.mark.asyncio
-async def test_supplier_cannot_self_activate_profile(client: AsyncClient):
-    registration = await client.post(
-        "/api/v1/auth/register-supplier",
-        json={
-            "legal_name": "Pending Supplier Co-operative",
-            "contact_name": "Aphiwe Nkosi",
-            "email": "pending@selfactivation.co.za",
-            "phone": "+27 82 555 0001",
-            "password": "SecurePassword2026!",
-            "categories": ["concrete"],
-            "service_regions": ["KwaZulu-Natal"],
-        },
-    )
-    assert registration.status_code == 201
-    token = registration.json()["access_token"]
-
+async def test_supplier_cannot_self_activate_profile(client: AsyncClient, pending_supplier: dict):
     response = await client.post(
         "/api/v1/suppliers/profile",
         json={
@@ -68,13 +44,14 @@ async def test_supplier_cannot_self_activate_profile(client: AsyncClient):
             "preferred_contact_method": "email",
             "active": True,
         },
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {pending_supplier['token']}"},
     )
     assert response.status_code == 200
     assert response.json()["active"] is False
     assert response.json()["status"] == "pending"
 
 
+@pytest.mark.asyncio
 async def test_approved_supplier_profile_update_preserves_activation(
     client: AsyncClient, seeded_entities: dict
 ):

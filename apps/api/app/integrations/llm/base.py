@@ -1,29 +1,33 @@
-from typing import List, Optional, Protocol
-from pydantic import BaseModel, Field
+from typing import List, Literal, Optional, Protocol
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ParsedLineItemDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     source_row_reference: Optional[str] = Field(None, description="Row or item identifier from source, e.g. 'A.1', '1.02'")
     section_name: Optional[str] = Field(None, description="Section or Bill name, e.g. 'Bill No. 2 - Earthworks'")
-    description: str = Field(..., description="Detailed description of materials or work")
-    unit: str = Field(default="no", description="Unit of measurement, e.g. 'm2', 'm3', 'kg', 'no', 'sum', 'm', 'item'")
-    quantity: float = Field(default=1.0, description="Quantity")
+    description: str = Field(..., min_length=1, description="Detailed description of materials or work")
+    unit: str = Field(..., min_length=1, description="Unit of measurement, e.g. 'm2', 'm3', 'kg', 'no', 'sum', 'm', 'item'")
+    quantity: float = Field(..., gt=0, allow_inf_nan=False, description="Quantity")
     category: str = Field(default="general-building", description="Standard material or trade category")
     benchmark_min_minor: Optional[int] = Field(None, description="Estimated lower benchmark in minor cents")
     benchmark_max_minor: Optional[int] = Field(None, description="Estimated upper benchmark in minor cents")
     benchmark_source: Optional[str] = Field(None, description="Benchmark reference label")
     parsing_confidence: float = Field(default=0.90, ge=0.0, le=1.0, description="Confidence score")
-    review_status: str = Field(default="accepted", description="Review status: 'accepted', 'needs_review', 'excluded'")
+    review_status: Literal["accepted", "needs_review", "excluded"] = Field(default="accepted", description="Review status")
     exclusion_reason: Optional[str] = Field(None, description="Reason if excluded or flagged for review")
 
 
 class ParseResultDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title_hint: Optional[str] = None
     tender_reference_hint: Optional[str] = None
-    sections_detected: List[str] = []
-    line_items: List[ParsedLineItemDTO] = []
-    excluded_candidates: List[ParsedLineItemDTO] = []
-    metadata: dict = {}
+    sections_detected: List[str] = Field(default_factory=list)
+    line_items: List[ParsedLineItemDTO] = Field(default_factory=list)
+    excluded_candidates: List[ParsedLineItemDTO] = Field(default_factory=list)
+    metadata: dict = Field(default_factory=dict)
 
 
 class LLMProvider(Protocol):
@@ -45,4 +49,3 @@ class LLMProvider(Protocol):
     ) -> ParseResultDTO:
         """Parses raw document bytes (PDF, Excel) directly into structured line items."""
         ...
-

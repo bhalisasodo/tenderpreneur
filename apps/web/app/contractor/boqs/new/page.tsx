@@ -5,100 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "../../../../lib/api";
 
-interface TenderPreset {
-  id: string;
-  name: string;
-  badge: string;
-  title: string;
-  ref: string;
-  region: string;
-  scheduleText: string;
-}
-
-const TENDER_PRESETS: TenderPreset[] = [
-  {
-    id: "ethekwini-water",
-    name: "eThekwini Water & Sanitation",
-    badge: "Durban, KZN (Civils)",
-    title: "eThekwini Municipality - Bulk Water Pipeline & Earthworks Upgrade",
-    ref: "WS-7840/2026",
-    region: "KwaZulu-Natal",
-    scheduleText: `Bill No. 1: Earthworks & Site Clearance
-1.01 | Clear and strip site of vegetation and topsoil | 1200.0 | m2
-1.02 | Excavation in soft earth for pipe trenches not exceeding 2.5m | 650.0 | m3
-1.03 | Selected granular bedding and backfilling compacted to 93% Mod AASHTO | 420.0 | m3
-
-Bill No. 2: Concrete, Formwork & Reinforcement
-2.01 | Mass concrete 15MPa for pipe anchor blocks and thrust cradles | 85.0 | m3
-2.02 | Reinforced 30MPa ready-mix concrete in valve inspection chambers | 140.0 | m3
-2.03 | High tensile deformed steel reinforcement rebar | 12.0 | ton
-
-Bill No. 3: Pipework & Protection
-3.01 | 300mm Class 16 uPVC bulk pressure water pipeline with rubber rings | 850.0 | m
-3.02 | 300mm double flange cast iron gate valves with handwheels | 6.0 | no
-3.03 | Personal Protective Equipment (PPE) site sets: hardhats, vests, boots | 30.0 | no`,
-  },
-  {
-    id: "gauteng-did",
-    name: "Gauteng DID Clinic Upgrade",
-    badge: "Joburg/Pretoria, GP (Building)",
-    title: "Gauteng Dept of Infrastructure - Mamelodi Clinic Ward Renovation",
-    ref: "DID-GP-2026-114",
-    region: "Gauteng",
-    scheduleText: `Bill No. 1: Demolition & Site Preparation
-1.01 | Break down and remove internal brick partition walls | 220.0 | m2
-1.02 | Excavate foundation trenches for new outpatient consulting wing | 180.0 | m3
-
-Bill No. 2: Masonry & Superstructure
-2.01 | Standard clay stock bricks (NFP) in 1:4 cement mortar for walls | 28000.0 | no
-2.02 | 50kg All-Purpose Portland Cement CEM II 42.5N bags | 450.0 | no
-2.03 | 25MPa ready-mix concrete for floor slabs and surface beds | 95.0 | m3
-
-Bill No. 3: Finishes & Electrical
-3.01 | Anti-bacterial porcelain floor tiles with chemical-resistant grout | 340.0 | m2
-3.02 | 12-way surface mounted distribution board complete with surge protection | 4.0 | no
-3.03 | SABS approved contractor PPE safety kits | 25.0 | no`,
-  },
-  {
-    id: "wc-schools",
-    name: "Western Cape Education Dept",
-    badge: "Cape Town, WC (Roofing)",
-    title: "Western Cape Education - High School Roofing & Perimeter Security",
-    ref: "WCED-2026-049",
-    region: "Western Cape",
-    scheduleText: `Bill No. 1: Structural Timber & Roofing
-1.01 | Treated timber roof trusses designed and fabricated to engineer specs | 380.0 | m2
-1.02 | 0.5mm IBR Chromadek corrugated roof sheeting with fixings and flashing | 420.0 | m2
-1.03 | Seamless aluminium rainwater gutters with downpipes | 160.0 | m
-
-Bill No. 2: Perimeter Security & Earthworks
-2.01 | Excavation in pickable earth for security fence post footings | 75.0 | m3
-2.02 | 2.1m high galvanised anti-climb security mesh perimeter fencing | 450.0 | m
-2.03 | PPE safety equipment sets: helmets, harnesses, high-vis vests | 20.0 | no`,
-  },
-];
-
 export default function NewBoQPage() {
   const router = useRouter();
-  const [selectedPresetId, setSelectedPresetId] = useState<string>("ethekwini-water");
-  const [title, setTitle] = useState(TENDER_PRESETS[0].title);
-  const [tenderRef, setTenderRef] = useState(TENDER_PRESETS[0].ref);
-  const [region, setRegion] = useState(TENDER_PRESETS[0].region);
-  const [inputMode, setInputMode] = useState<"upload" | "paste">("paste");
+  const [title, setTitle] = useState("");
+  const [tenderRef, setTenderRef] = useState("");
+  const [region, setRegion] = useState("KwaZulu-Natal");
+  const [inputMode, setInputMode] = useState<"upload" | "paste">("upload");
   const [file, setFile] = useState<File | null>(null);
-  const [pastedText, setPastedText] = useState(TENDER_PRESETS[0].scheduleText);
+  const [pastedText, setPastedText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const applyPreset = (preset: TenderPreset) => {
-    setSelectedPresetId(preset.id);
-    setTitle(preset.title);
-    setTenderRef(preset.ref);
-    setRegion(preset.region);
-    setPastedText(preset.scheduleText);
-    setInputMode("paste");
-    setError(null);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,7 +60,7 @@ export default function NewBoQPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Upload &amp; Ingest Tender BoQ</h2>
-          <p className="text-xs text-slate-500">Provide tender details, choose a 1-click South African preset, or upload your PDF/Excel document.</p>
+          <p className="text-xs text-slate-500">Provide tender details and upload a BoQ file or paste source text for extraction.</p>
         </div>
         <Link
           href="/contractor"
@@ -152,41 +68,6 @@ export default function NewBoQPage() {
         >
           Cancel
         </Link>
-      </div>
-
-      {/* 1-Click SA Municipal Presets */}
-      <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white p-5 rounded-2xl shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-blue-300">
-            ⚡ Quick Demo Presets (South Africa)
-          </span>
-          <span className="text-[11px] text-slate-400">Click to load realistic municipal tender</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {TENDER_PRESETS.map((p) => {
-            const isSelected = selectedPresetId === p.id && inputMode === "paste";
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => applyPreset(p)}
-                className={`p-3 rounded-xl text-left border transition flex flex-col justify-between ${
-                  isSelected
-                    ? "bg-blue-600/30 border-blue-400 ring-1 ring-blue-400"
-                    : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20"
-                }`}
-              >
-                <div>
-                  <div className="font-bold text-xs text-white">{p.name}</div>
-                  <div className="text-[10px] text-blue-200 mt-0.5">{p.badge}</div>
-                </div>
-                <div className="text-[10px] text-emerald-400 font-semibold mt-2 font-mono">
-                  {p.ref}
-                </div>
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {error && (

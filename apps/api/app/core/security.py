@@ -8,10 +8,12 @@ import jwt
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.models import User
 
 security_scheme = HTTPBearer(auto_error=False)
 
@@ -143,13 +145,32 @@ async def get_current_auth(
         )
 
     is_rfq_direct = payload.get("token_type") == "rfq_direct"
+    user_id = payload.get("sub")
+    organisation_id = payload.get("org_id")
+    organisation_type = payload.get("org_type")
+    user = None
+    if not is_rfq_direct:
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if (
+            not user
+            or not user.is_active
+            or user.organisation_id != organisation_id
+            or not user.organisation
+            or user.organisation.type != organisation_type
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"code": "INVALID_TOKEN", "message": "This account is no longer active."},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     return AuthContext(
-        user_id=payload["sub"],
-        organisation_id=payload["org_id"],
-        organisation_type=payload["org_type"],
-        role=payload.get("role", "admin"),
-        email=payload.get("email", ""),
+        user_id=user_id,
+        organisation_id=organisation_id,
+        organisation_type=organisation_type,
+        role=user.role if user else payload.get("role", "sales"),
+        email=user.email if user else payload.get("email", ""),
         rfq_id=payload.get("rfq_id"),
         is_rfq_direct=is_rfq_direct,
     )
@@ -165,6 +186,15 @@ def require_contractor(auth: AuthContext = Depends(get_current_auth)) -> AuthCon
 
 
 def require_supplier(auth: AuthContext = Depends(get_current_auth)) -> AuthContext:
+    if auth.organisation_type != "supplier" or auth.is_rfq_direct:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "FORBIDDEN", "message": "Action requires supplier organisation permissions."},
+        )
+    return auth
+
+
+def require_quote_supplier(auth: AuthContext = Depends(get_current_auth)) -> AuthContext:
     if auth.organisation_type != "supplier":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -183,7 +213,7 @@ def require_platform_admin(auth: AuthContext = Depends(get_current_auth)) -> Aut
 
 
 def require_operator(auth: AuthContext = Depends(get_current_auth)) -> AuthContext:
-    if auth.role not in {"platform_admin", "platform_operator"} and auth.email.lower() not in settings.operator_emails:
+    if auth.role not in {"platform_admin", "platform_operator"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "OPERATOR_REQUIRED", "message": "Action requires platform operator permissions."},

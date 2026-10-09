@@ -1,10 +1,3 @@
-export function generateStaticParams() {
-  return [
-    { boqId: "demo" },
-    { boqId: "sample" },
-  ];
-}
-
 export default function BoQDetailLayout({
   children,
 }: {

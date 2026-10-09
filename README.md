@@ -19,6 +19,10 @@ $$\text{Upload BoQ/Scope} \longrightarrow \text{Structured Parsing} \longrightar
 5. **Quote Comparison Matrix:** Side-by-side contractor view highlighting lowest price and fastest delivery, with 1-click quote selection or manual price overrides with mandatory audit justification.
 6. **Audit-Ready Exports:** Generates submission-ready Excel (`.xlsx` with embedded audit sheet) and PDF schedules with quote references and timestamps.
 
+## Account onboarding
+
+Contractors can register an organisation and administrator account from the public landing page and begin using their workspace immediately. Suppliers register with their categories and service regions; supplier profiles remain inactive until a platform operator reviews and approves them. Platform operator accounts are provisioned separately and are never available through public registration.
+
 ---
 
 ## Quickstart (Local Zero-Config Run)
@@ -32,7 +36,7 @@ uvicorn app.main:app --reload --port 8000
 ```
 - API Docs & Swagger UI: `http://localhost:8000/docs`
 - Health check: `http://localhost:8000/health`
-- The database is automatically initialized and seeded with demo contractors and suppliers on first launch.
+- Development database tables are initialized on first launch. Create an account through the registration page; suppliers require operator approval before marketplace access.
 
 ### 2. Start Frontend Web App (`apps/web`)
 ```bash

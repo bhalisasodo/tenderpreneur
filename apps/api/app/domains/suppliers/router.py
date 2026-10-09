@@ -33,10 +33,10 @@ async def get_supplier_profile(
         # Create default empty profile if none exists yet
         profile = SupplierProfile(
             organisation_id=auth.organisation_id,
-            categories=["building-materials"],
-            service_regions=["KwaZulu-Natal", "Gauteng"],
-            compliance_flags={"csd_registered": True, "bbee_level": "1"},
-            preferred_contact_method="whatsapp",
+            categories=[],
+            service_regions=[],
+            compliance_flags={},
+            preferred_contact_method="email",
             status="pending",
             active=False,
         )
@@ -60,10 +60,10 @@ async def upsert_supplier_profile(
     if not profile:
         profile = SupplierProfile(
             organisation_id=auth.organisation_id,
-            categories=payload.categories or ["building-materials"],
-            service_regions=payload.service_regions or ["KwaZulu-Natal"],
+            categories=payload.categories or [],
+            service_regions=payload.service_regions or [],
             compliance_flags=payload.compliance_flags or {},
-            preferred_contact_method=payload.preferred_contact_method or "whatsapp",
+            preferred_contact_method=payload.preferred_contact_method or "email",
             status="pending",
             active=False,
             created_at=utc_now(),

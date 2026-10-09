@@ -1,6 +1,6 @@
 import os
-from typing import Annotated, Any, List, Optional, Union
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from typing import Any, List, Optional, Union
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator, model_validator
 from urllib.parse import urlparse
 
@@ -20,7 +20,6 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
     rate_limit_auth_per_minute: int = 20
-    operator_emails: Annotated[List[str], NoDecode] = Field(default_factory=list)
     password_salt: str = "boqpro-default-salt-change-in-production"
     app_base_url: str = "http://localhost:3000"
 
@@ -65,13 +64,6 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
 
-    @field_validator("operator_emails", mode="before")
-    @classmethod
-    def parse_operator_emails(cls, v: Union[str, List[str]]) -> List[str]:
-        if isinstance(v, str):
-            return [email.strip().lower() for email in v.split(",") if email.strip()]
-        return [email.strip().lower() for email in v]
-
     @model_validator(mode="before")
     @classmethod
     def fallback_legacy_env_vars(cls, data: Any) -> Any:
@@ -80,7 +72,7 @@ class Settings(BaseSettings):
         # Support fallback from legacy TENDERPRENEUR_* env vars if BOQPRO_* was not provided
         field_keys = [
             "environment", "debug", "database_url", "jwt_secret", "jwt_algorithm",
-            "jwt_expire_minutes", "rate_limit_auth_per_minute", "operator_emails",
+            "jwt_expire_minutes", "rate_limit_auth_per_minute",
             "password_salt", "app_base_url",
             "storage_type",
             "local_storage_path", "object_storage_endpoint", "object_storage_bucket",

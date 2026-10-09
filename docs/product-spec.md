@@ -37,23 +37,24 @@ Primary needs:
 
 ## 4. Contractor flow
 
-1. Upload BoQ/scope as PDF, Excel, scanned document, or pasted text.
-2. Parse into description, unit, quantity and category.
-3. Suggest category and benchmark range where benchmark data exists.
-4. Contractor chooses which line items need supplier quotes.
-5. Match suppliers by category and region.
-6. Send quote requests.
-7. Receive quotes within a defined response window.
-8. Compare and select a quote or override manually.
-9. Compile final priced BoQ with quote evidence.
-10. Export PDF/Excel.
+1. Register the contractor organisation and an administrator account.
+2. Upload BoQ/scope as PDF, Excel, scanned document, or pasted text.
+3. Parse into description, unit, quantity and category.
+4. Suggest category and benchmark range where benchmark data exists.
+5. Contractor chooses which line items need supplier quotes.
+6. Match suppliers by category and region.
+7. Send quote requests.
+8. Receive quotes within a defined response window.
+9. Compare and select a quote or override manually.
+10. Compile final priced BoQ with quote evidence.
+11. Export PDF/Excel.
 
 ## 5. Supplier flow
 
-1. Register.
-2. Select categories and service region.
-3. Provide optional compliance information.
-4. Receive matching requests.
+1. Register the supplier organisation, administrator, supply categories and service regions.
+2. Wait for platform review; new supplier accounts remain inactive and cannot receive quote requests until approved.
+3. Provide optional self-declared compliance information.
+4. Receive matching requests after approval.
 5. Submit price per line item.
 6. Quote becomes visible to contractor according to request rules.
 7. Supplier outcome is recorded.

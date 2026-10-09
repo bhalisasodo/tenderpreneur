@@ -1,14 +1,45 @@
 import io
 import re
+import csv
 from typing import Any, Dict, List, Optional, Tuple
 import openpyxl
 from app.domains.parsing.segmentation import (
     classify_candidate_line_item,
     clean_quantity_value,
     is_legal_or_narrative_noise,
+    quantity_needs_review,
 )
 from app.integrations.llm.base import ParseResultDTO, ParsedLineItemDTO
 from app.integrations.llm.stub import CATEGORY_KEYWORDS, UNIT_NORMALIZATION
+
+
+class _RowsWorksheet:
+    def __init__(self, rows: List[Tuple[Any, ...]]):
+        self.rows = rows
+
+    def iter_rows(self, values_only: bool = False, max_row: Optional[int] = None, min_row: int = 1):
+        end = max_row if max_row is not None else len(self.rows)
+        return iter(self.rows[min_row - 1:end])
+
+
+def _load_worksheets(document_bytes: bytes, filename: Optional[str] = None):
+    if (filename or "").lower().endswith(".xls") and not (filename or "").lower().endswith(".xlsx"):
+        import xlrd
+
+        workbook = xlrd.open_workbook(file_contents=document_bytes)
+        return [
+            (
+                sheet.name,
+                _RowsWorksheet(
+                    [tuple(value if value != "" else None for value in sheet.row_values(row_idx))
+                     for row_idx in range(sheet.nrows)]
+                ),
+            )
+            for sheet in workbook.sheets()
+        ]
+
+    workbook = openpyxl.load_workbook(io.BytesIO(document_bytes), data_only=True)
+    return [(sheet_name, workbook[sheet_name]) for sheet_name in workbook.sheetnames]
 
 HEADER_SYNONYMS = {
     "ref": ["item", "item no", "item nr", "item #", "ref", "no", "code", "item_code", "section/item"],
@@ -76,7 +107,7 @@ def parse_structured_spreadsheet(
     If unstructured / ambiguous, returns None so LLM pipeline can handle it.
     """
     try:
-        wb = openpyxl.load_workbook(io.BytesIO(document_bytes), data_only=True)
+        worksheets = _load_worksheets(document_bytes, filename)
     except Exception:
         return None
 
@@ -89,8 +120,7 @@ def parse_structured_spreadsheet(
 
     found_structured_sheet = False
 
-    for sheet_name in wb.sheetnames:
-        ws = wb[sheet_name]
+    for sheet_name, ws in worksheets:
         header_info = detect_sheet_header_columns(ws)
         if not header_info:
             continue
@@ -107,8 +137,10 @@ def parse_structured_spreadsheet(
         qty_col = col_map.get("quantity")
         ref_col = col_map.get("ref")
 
-        row_num = 1
-        for row in ws.iter_rows(values_only=True, min_row=header_row_idx + 1):
+        for row_num, row in enumerate(
+            ws.iter_rows(values_only=True, min_row=header_row_idx + 1),
+            start=header_row_idx + 1,
+        ):
             if not row or len(row) <= desc_col:
                 continue
                 
@@ -128,14 +160,36 @@ def parse_structured_spreadsheet(
                 section_name = sec_title
                 continue
 
-            # Unit
-            raw_unit = str(row[unit_col]).strip() if unit_col is not None and len(row) > unit_col and row[unit_col] is not None else "no"
+            is_noise, noise_reason = is_legal_or_narrative_noise(desc_str)
+            if is_noise:
+                excluded_item = ParsedLineItemDTO(
+                    source_row_reference=f"{row_num}",
+                    section_name=section_name,
+                    description=desc_str,
+                    unit=_normalize_unit(str(row[unit_col]).strip() if unit_col is not None and len(row) > unit_col and row[unit_col] is not None else "no"),
+                    quantity=clean_quantity_value(row[qty_col] if qty_col is not None and len(row) > qty_col else None),
+                    category=_infer_category(desc_str + " " + section_name),
+                    benchmark_min_minor=None,
+                    benchmark_max_minor=None,
+                    benchmark_source=None,
+                    parsing_confidence=0.15,
+                    review_status="excluded",
+                    exclusion_reason=noise_reason,
+                )
+                all_excluded.append(excluded_item)
+                continue
+
+            # Missing fields use a display placeholder but must remain visibly reviewable.
+            raw_unit = str(row[unit_col]).strip() if unit_col is not None and len(row) > unit_col and row[unit_col] is not None else ""
+            missing_unit = not raw_unit
+            if missing_unit:
+                raw_unit = "no"
             unit = _normalize_unit(raw_unit)
 
             # Quantity
-            qty = 1.0
-            if qty_col is not None and len(row) > qty_col and row[qty_col] is not None:
-                qty = clean_quantity_value(row[qty_col])
+            raw_quantity = row[qty_col] if qty_col is not None and len(row) > qty_col else None
+            quantity_parse_failed = quantity_needs_review(raw_quantity)
+            qty = clean_quantity_value(raw_quantity)
 
             # Ref
             raw_ref = str(row[ref_col]).strip() if ref_col is not None and len(row) > ref_col and row[ref_col] is not None else f"{row_num}"
@@ -150,6 +204,16 @@ def parse_structured_spreadsheet(
                 raw_reference=raw_ref,
                 section_name=section_name,
             )
+            if missing_unit or quantity_parse_failed:
+                is_valid = True
+                review_status = "needs_review"
+                conf = min(conf, 0.55)
+                missing_fields = []
+                if missing_unit:
+                    missing_fields.append("unit")
+                if quantity_parse_failed:
+                    missing_fields.append("quantity")
+                exclusion_reason = f"Confirm missing or unreadable source {' and '.join(missing_fields)}."
 
             category = _infer_category(desc_str + " " + section_name)
 
@@ -173,9 +237,7 @@ def parse_structured_spreadsheet(
             else:
                 all_excluded.append(item_dto)
                 
-        row_num += 1
-
-    if not found_structured_sheet or not all_line_items:
+    if not found_structured_sheet or not (all_line_items or all_excluded):
         return None
 
     return ParseResultDTO(
@@ -195,16 +257,35 @@ def parse_structured_spreadsheet(
     )
 
 
-def extract_text_from_spreadsheet(document_bytes: bytes) -> str:
+def parse_structured_csv(document_bytes: bytes, filename: Optional[str] = None) -> Optional[ParseResultDTO]:
+    text = None
+    for encoding in ("utf-8-sig", "utf-8", "cp1252", "iso-8859-1"):
+        try:
+            text = document_bytes.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        return None
+
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
+    for row in csv.reader(io.StringIO(text)):
+        worksheet.append(row)
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return parse_structured_spreadsheet(buffer.getvalue(), filename=filename)
+
+
+def extract_text_from_spreadsheet(document_bytes: bytes, filename: Optional[str] = None) -> str:
     """Safely extracts all text and values from an Excel workbook (.xlsx).
     Iterates across all sheets and rows to produce clean tabular text lines.
     Never falls back to raw binary or zip decoding.
     """
     try:
-        wb = openpyxl.load_workbook(io.BytesIO(document_bytes), data_only=True)
+        worksheets = _load_worksheets(document_bytes, filename)
         lines = []
-        for sheet_name in wb.sheetnames:
-            ws = wb[sheet_name]
+        for sheet_name, ws in worksheets:
             lines.append(f"--- SHEET: {sheet_name} ---")
             for row in ws.iter_rows(values_only=True):
                 row_vals = [str(v).strip() for v in row if v is not None and str(v).strip() != ""]
@@ -213,4 +294,3 @@ def extract_text_from_spreadsheet(document_bytes: bytes) -> str:
         return "\n".join(lines)
     except Exception:
         return ""
-

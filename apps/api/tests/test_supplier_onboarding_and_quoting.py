@@ -1,82 +1,53 @@
 import pytest
 from httpx import AsyncClient
+
 from app.core.security import create_rfq_access_token
 
 
 @pytest.mark.asyncio
-async def test_supplier_registration_and_login_lifecycle(client: AsyncClient):
-    payload = {
-        "legal_name": "Tshwane Quarry & Aggregate Supplies (Pty) Ltd",
-        "trading_name": "Tshwane Aggregates",
-        "contact_name": "Kagiso Mokoena",
-        "email": "kagiso@tshwaneaggregates.co.za",
-        "phone": "+27 82 555 8899",
-        "region": "Gauteng",
-        "password": "SecurePassword2026!",
-        "categories": ["concrete", "earthworks"],
-        "service_regions": ["Gauteng", "Mpumalanga"],
-        "preferred_contact_method": "whatsapp",
-        "compliance_flags": {"bbee_level": "1", "csd_number": "MAAA0998877", "csd_registered": True},
-    }
-
-    # 1. Register supplier
-    response = await client.post("/api/v1/auth/register-supplier", json=payload)
+async def test_public_registration_creates_supplier_application_pending_review(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "organisation_type": "supplier",
+            "legal_name": "New Durban Supplier (Pty) Ltd",
+            "email": "new-supplier@example.co.za",
+            "phone": "+27820000000",
+            "region": "KwaZulu-Natal",
+            "name": "Supplier Contact",
+            "password": "SupplierPassword2026!",
+            "supplier_categories": ["building-materials"],
+            "supplier_service_regions": ["KwaZulu-Natal"],
+        },
+    )
     assert response.status_code == 201
-    data = response.json()
-    assert "access_token" in data
-    assert data["organisation"]["legal_name"] == "Tshwane Quarry & Aggregate Supplies (Pty) Ltd"
-    assert data["organisation"]["type"] == "supplier"
-    assert data["organisation"]["region"] == "Gauteng"
-    assert data["user"]["email"] == "kagiso@tshwaneaggregates.co.za"
-    assert data["profile"]["categories"] == ["concrete", "earthworks"]
-    assert data["profile"]["status"] == "pending"
-    assert data["profile"]["compliance_flags"]["csd_number"] == "MAAA0998877"
+    registration = response.json()
+    assert registration["supplier_approval_status"] == "pending"
 
-    # 2. Login with correct password
-    login_res = await client.post(
-        "/api/v1/auth/login",
-        json={"email": "kagiso@tshwaneaggregates.co.za", "password": "SecurePassword2026!"},
+    profile = await client.get(
+        "/api/v1/suppliers/profile",
+        headers={"Authorization": f"Bearer {registration['access_token']}"},
     )
-    assert login_res.status_code == 200
-    assert "access_token" in login_res.json()
+    assert profile.status_code == 200
+    assert profile.json()["status"] == "pending"
+    assert profile.json()["active"] is False
 
-    # 3. Login with incorrect password
-    bad_login_res = await client.post(
+    login = await client.post(
         "/api/v1/auth/login",
-        json={"email": "kagiso@tshwaneaggregates.co.za", "password": "WrongPassword!"},
+        json={"email": "new-supplier@example.co.za", "password": "SupplierPassword2026!"},
     )
-    assert bad_login_res.status_code == 401
-
-    # 4. Attempt to register again with duplicate email -> should fail
-    dup_res = await client.post("/api/v1/auth/register-supplier", json=payload)
-    assert dup_res.status_code == 400
+    assert login.status_code == 200
+    assert login.json()["supplier_approval_status"] == "pending"
 
 
 @pytest.mark.asyncio
 async def test_supplier_approval_is_required_for_matching_and_delivery(
-    client: AsyncClient, seeded_entities: dict
+    client: AsyncClient, seeded_entities: dict, pending_supplier: dict
 ):
     contractor_token = seeded_entities["contractor_token"]
-    platform_admin_token = seeded_entities["platform_admin_token"]
-
-    registration_payload = {
-        "legal_name": "Pending Supplier Co-operative",
-        "contact_name": "Aphiwe Nkosi",
-        "email": "approval@pendingsupplier.co.za",
-        "phone": "+27 82 555 0001",
-        "region": "KwaZulu-Natal",
-        "password": "SecurePassword2026!",
-        "categories": ["building-materials"],
-        "service_regions": ["KwaZulu-Natal"],
-        "preferred_contact_method": "email",
-    }
-    registration_res = await client.post(
-        "/api/v1/auth/register-supplier",
-        json=registration_payload,
-    )
-    assert registration_res.status_code == 201
-    supplier_org_id = registration_res.json()["organisation"]["id"]
-    supplier_token = registration_res.json()["access_token"]
+    operator_token = seeded_entities["platform_admin_token"]
+    supplier_org_id = pending_supplier["organisation"].id
+    supplier_token = pending_supplier["token"]
 
     matching_res = await client.get(
         "/api/v1/suppliers/match?category=building-materials&region=KwaZulu-Natal",
@@ -94,7 +65,7 @@ async def test_supplier_approval_is_required_for_matching_and_delivery(
 
     approval_res = await client.post(
         f"/api/v1/suppliers/{supplier_org_id}/approve",
-        headers={"Authorization": f"Bearer {platform_admin_token}"},
+        headers={"Authorization": f"Bearer {operator_token}"},
     )
     assert approval_res.status_code == 200
     assert approval_res.json()["status"] == "approved"
@@ -117,32 +88,18 @@ async def test_supplier_approval_is_required_for_matching_and_delivery(
 
 @pytest.mark.asyncio
 async def test_supplier_rejection_blocks_matching_and_quote_delivery(
-    client: AsyncClient, seeded_entities: dict
+    client: AsyncClient, seeded_entities: dict, pending_supplier: dict, db_session
 ):
-    platform_admin_token = seeded_entities["platform_admin_token"]
-
-    registration_payload = {
-        "legal_name": "Rejected Supplier Ltd",
-        "contact_name": "Lethabo Mokoena",
-        "email": "rejected@suppliers.example",
-        "phone": "+27 82 555 0002",
-        "region": "Gauteng",
-        "password": "SecurePassword2026!",
-        "categories": ["electrical"],
-        "service_regions": ["Gauteng"],
-        "preferred_contact_method": "email",
-    }
-    registration_res = await client.post(
-        "/api/v1/auth/register-supplier",
-        json=registration_payload,
-    )
-    assert registration_res.status_code == 201
-    supplier_org_id = registration_res.json()["organisation"]["id"]
-    supplier_token = registration_res.json()["access_token"]
+    operator_token = seeded_entities["platform_admin_token"]
+    supplier_org_id = pending_supplier["organisation"].id
+    supplier_token = pending_supplier["token"]
+    pending_supplier["profile"].categories = ["electrical"]
+    pending_supplier["profile"].service_regions = ["Gauteng"]
+    await db_session.commit()
 
     reject_res = await client.post(
         f"/api/v1/suppliers/{supplier_org_id}/reject",
-        headers={"Authorization": f"Bearer {platform_admin_token}"},
+        headers={"Authorization": f"Bearer {operator_token}"},
     )
     assert reject_res.status_code == 200
     assert reject_res.json()["status"] == "rejected"
@@ -265,6 +222,11 @@ async def test_rfq_broadcast_and_frictionless_mobile_token_quoting(
     assert mobile_data["id"] == qr_id
     assert mobile_data["line_item_quantity"] == 600
     assert mobile_data["line_item_unit"] == "no"
+
+    profile_res = await client.get(f"/api/v1/suppliers/profile?access_token={rfq_direct_token}")
+    inbox_res = await client.get(f"/api/v1/suppliers/quote-requests?access_token={rfq_direct_token}")
+    assert profile_res.status_code == 403
+    assert inbox_res.status_code == 403
 
     # 5b. Supplier submits quote using only query access_token (NO prior login session)
     quote_submit_res = await client.post(

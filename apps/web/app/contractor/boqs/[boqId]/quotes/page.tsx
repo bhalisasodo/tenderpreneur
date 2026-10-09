@@ -20,7 +20,6 @@ export default function QuoteComparisonPage() {
   const [overrideReason, setOverrideReason] = useState<string>("");
   const [savingOverride, setSavingOverride] = useState(false);
   const [autoSelecting, setAutoSelecting] = useState(false);
-  const [simulating, setSimulating] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -60,20 +59,6 @@ export default function QuoteComparisonPage() {
       alert("Auto-selection failed: " + err.message);
     } finally {
       setAutoSelecting(false);
-    }
-  };
-
-  const handleSimulateQuotes = async () => {
-    try {
-      setSimulating(true);
-      setActionNotice(null);
-      const res = await api.simulateBoqQuotes(boqId);
-      setActionNotice(`✓ Generated simulated supplier quotes!`);
-      await loadComparison();
-    } catch (err: any) {
-      alert("Simulation failed: " + err.message);
-    } finally {
-      setSimulating(false);
     }
   };
 
@@ -137,14 +122,6 @@ export default function QuoteComparisonPage() {
             >
               <span>⚡</span>
               <span>{autoSelecting ? "Selecting..." : "Auto-Select Best Prices"}</span>
-            </button>
-            <button
-              onClick={handleSimulateQuotes}
-              disabled={simulating}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow transition disabled:opacity-50 flex items-center space-x-1"
-            >
-              <span>🎲</span>
-              <span>{simulating ? "Simulating..." : "Simulate Quotes (Demo)"}</span>
             </button>
             <button
               onClick={loadComparison}

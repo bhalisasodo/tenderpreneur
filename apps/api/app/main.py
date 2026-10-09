@@ -14,7 +14,6 @@ from app.domains.exports.router import router as exports_router
 from app.domains.parsing.router import router as parsing_router
 from app.domains.quotes.router import router as quotes_router
 from app.domains.suppliers.router import router as suppliers_router
-from app.seed import seed_database
 
 
 @asynccontextmanager
@@ -23,11 +22,6 @@ async def lifespan(app: FastAPI):
         # Initialize database tables on startup (especially for SQLite dev mode)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        # Automatically seed if database is empty
-        try:
-            await seed_database()
-        except Exception as e:
-            print(f"Seed info: {e}")
     yield
 
 

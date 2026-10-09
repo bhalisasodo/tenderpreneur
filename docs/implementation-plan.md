@@ -155,7 +155,8 @@ tenderpreneur/
 │   └── web/                      # Next.js Frontend
 │       ├── app/
 │       │   ├── layout.tsx        # Root layout
-│       │   ├── page.tsx          # Landing & demo persona switcher
+│       │   ├── page.tsx          # Public BoQPro landing page
+│       │   ├── login/page.tsx    # Password-based sign-in
 │       │   ├── contractor/       # Contractor Portal
 │       │   │   ├── layout.tsx    # Contractor portal shell
 │       │   │   ├── page.tsx      # Contractor BoQ list & metrics
@@ -188,8 +189,8 @@ tenderpreneur/
 ### Milestone 1 — Foundation (Backend & Frontend Scaffold)
 - [x] Architecture & plan validation against source brief & MVP validation strategy.
 - [x] Implemented `apps/api/app/core` (config, database engine with SQLite & PostgreSQL support, models, error handlers).
-- [x] Implemented `apps/api/app/domains/auth` with tenant context and 1-click persona switcher endpoints.
-- [x] Implemented database seed script (`apps/api/app/seed.py`) with realistic South African contractors and suppliers.
+- [x] Implemented password-based sign-in, authenticated session verification, tenant context, and role-gated web portals.
+- [x] Removed automatic demo-user seeding, persona switching, public supplier registration, and client-side mock fallbacks. Accounts are provisioned through the operator-controlled CLI.
 - [x] Set up `apps/web` with Tailwind CSS, layout shells, and shared API client.
 - [x] Verified `/health` and baseline auth endpoints with automated tests.
 

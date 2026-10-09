@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, AuthSession, QuoteRequestDTO } from "../../lib/api";
+import { api, AuthSession, QuoteRequestDTO, SupplierProfileDTO } from "../../lib/api";
 import { formatDateTime, formatTimeRemaining, formatZAR } from "../../lib/formatters";
 
 export default function SupplierDashboard() {
   const [requests, setRequests] = useState<QuoteRequestDTO[]>([]);
   const [session, setSession] = useState<AuthSession | null>(null);
+  const [profile, setProfile] = useState<SupplierProfileDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "submitted" | "closed">("all");
@@ -18,12 +19,14 @@ export default function SupplierDashboard() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [reqs, me] = await Promise.all([
+      const [reqs, me, supplierProfile] = await Promise.all([
         api.getSupplierQuoteRequests(),
         api.getMe().catch(() => null),
+        api.getSupplierProfile(),
       ]);
       setRequests(reqs);
       setSession(me);
+      setProfile(supplierProfile);
       setError(null);
     } catch (err: any) {
       setError(err.message);
@@ -47,11 +50,28 @@ export default function SupplierDashboard() {
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-end">
-        <a href="/supplier/register" className="text-sm font-semibold text-emerald-700 underline">
-          Register as a Durban supplier
-        </a>
-      </div>
+      {profile && profile.status !== "approved" && (
+        <section
+          role="status"
+          className={`rounded-xl border p-4 text-sm ${
+            profile.status === "rejected" || profile.status === "suspended"
+              ? "border-amber-200 bg-amber-50 text-amber-900"
+              : "border-blue-200 bg-blue-50 text-blue-900"
+          }`}
+        >
+          <h2 className="font-semibold">
+            {profile.status === "pending"
+              ? "Supplier application received"
+              : `Supplier account ${profile.status}`}
+          </h2>
+          <p className="mt-1">
+            {profile.status === "pending"
+              ? "Your application is awaiting platform review. Quote requests will be available after approval."
+              : "Marketplace access is not active. Contact the BoQPro team if you need assistance."}
+          </p>
+        </section>
+      )}
+
       {/* Supplier Identity Banner */}
       {session && (
         <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white p-5 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">

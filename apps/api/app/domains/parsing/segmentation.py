@@ -1,4 +1,5 @@
 import re
+import math
 from typing import List, Optional, Tuple
 from app.core.config import settings
 
@@ -51,7 +52,8 @@ def clean_quantity_value(raw: object) -> float:
     if raw is None:
         return 1.0
     if isinstance(raw, (int, float)):
-        return float(raw)
+        value = float(raw)
+        return value if math.isfinite(value) and value > 0 else 1.0
 
     val = str(raw).strip()
     if not val:
@@ -95,9 +97,16 @@ def clean_quantity_value(raw: object) -> float:
         candidate = candidate.replace(' ', '')
 
     try:
-        return float(candidate)
+        value = float(candidate)
+        return value if math.isfinite(value) and value > 0 else 1.0
     except (ValueError, TypeError):
         return 1.0
+
+
+def quantity_needs_review(raw: object) -> bool:
+    if raw is None or not str(raw).strip() or not any(character.isdigit() for character in str(raw)):
+        return True
+    return clean_quantity_value(raw) == 1.0 and str(raw).strip() not in {"1", "1.0"}
 
 
 def is_legal_or_narrative_noise(text: str) -> Tuple[bool, Optional[str]]:

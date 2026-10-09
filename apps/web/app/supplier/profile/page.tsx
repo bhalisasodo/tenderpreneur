@@ -136,7 +136,7 @@ export default function SupplierProfilePage() {
                 ? "Your supplier application has been rejected. Contact the platform administrator for details."
                 : status === "suspended"
                   ? "Your marketplace access has been suspended. Contact the platform administrator."
-                  : "Your application is under review. You will be notified when it is approved."}
+                  : "Your application is under review. This status will update here after the platform review."}
           </p>
         </div>
 

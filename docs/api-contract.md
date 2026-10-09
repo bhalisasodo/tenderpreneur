@@ -10,6 +10,27 @@ The exact serialization library may be chosen by the implementation, but the dom
 
 All contractor/supplier resources must be organisation-scoped server-side.
 
+### Register an organisation
+
+`POST /auth/register`
+
+The request includes the organisation type (`contractor` or `supplier`), legal and optional trading name, contact email, region, administrator name and password. Supplier registration also requires at least one supply category and service region.
+
+```json
+{
+  "organisation_type": "supplier",
+  "legal_name": "Example Building Supplies (Pty) Ltd",
+  "email": "sales@example.co.za",
+  "region": "KwaZulu-Natal",
+  "name": "Supplier Contact",
+  "password": "a-long-unique-password",
+  "supplier_categories": ["building-materials"],
+  "supplier_service_regions": ["KwaZulu-Natal"]
+}
+```
+
+Contractor registrations create an active administrator account. Supplier registrations create an inactive profile with `pending` status and require platform-operator approval before marketplace matching. A successful response returns the authenticated session and organisation.
+
 ## Health
 
 `GET /health`

@@ -3,6 +3,7 @@ import hashlib
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password, verify_password
 
@@ -67,44 +68,130 @@ async def test_login_rejects_invalid_password(client: AsyncClient, seeded_entiti
 
 
 @pytest.mark.asyncio
-async def test_supplier_registration_starts_pending_for_durban(client: AsyncClient):
+async def test_login_rejects_accounts_without_a_password_hash(client: AsyncClient, seeded_entities: dict):
     response = await client.post(
-        "/api/v1/auth/supplier-registration",
-        json={
-            "legal_name": "Durban Coastal Aggregates",
-            "trading_name": "Coastal Aggregates",
-            "contact_name": "Thandi Mkhize",
-            "email": "thandi@coastalaggregates.co.za",
-            "phone": "+27310000000",
-            "password": "a-secure-password",
-            "categories": ["concrete"],
-        },
-    )
-    assert response.status_code == 201
-    assert response.json()["status"] == "pending_approval"
-
-    login = await client.post(
         "/api/v1/auth/login",
-        json={"email": "thandi@coastalaggregates.co.za", "password": "a-secure-password"},
+        json={"email": "sales@durbanhub.co.za", "password": "password"},
     )
-    assert login.status_code == 200
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "INVALID_CREDENTIALS"
 
 
 @pytest.mark.asyncio
-async def test_supplier_registration_rejects_duplicate_email(client: AsyncClient, seeded_entities: dict):
-    response = await client.post(
-        "/api/v1/auth/supplier-registration",
-        json={
-            "legal_name": "Duplicate Supplier",
-            "contact_name": "Duplicate Contact",
-            "email": "estimator@amandla.co.za",
-            "phone": "+27310000001",
-            "password": "a-secure-password",
-            "categories": ["concrete"],
-        },
+async def test_deactivated_user_token_is_rejected(
+    client: AsyncClient,
+    seeded_entities: dict,
+    db_session: AsyncSession,
+):
+    user = seeded_entities["contractor_user"]
+    user.is_active = False
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/boqs",
+        headers={"Authorization": f"Bearer {seeded_entities['contractor_token']}"},
     )
-    assert response.status_code == 409
-    assert response.json()["detail"]["code"] == "EMAIL_ALREADY_REGISTERED"
+    assert response.status_code == 401
+
+
+def registration_payload(**overrides):
+    payload = {
+        "organisation_type": "contractor",
+        "legal_name": "Example Infrastructure (Pty) Ltd",
+        "email": "ADMIN@EXAMPLE.CO.ZA",
+        "region": "KwaZulu-Natal",
+        "name": "Example Administrator",
+        "password": "a-secure-password-2026",
+    }
+    payload.update(overrides)
+    return payload
+
+
+@pytest.mark.asyncio
+async def test_contractor_registration_creates_workspace_and_signs_in(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/auth/register",
+        json=registration_payload(trading_name="Example Infrastructure"),
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["access_token"]
+    assert data["user"]["email"] == "admin@example.co.za"
+    assert data["user"]["role"] == "admin"
+    assert data["organisation"]["type"] == "contractor"
+    assert data["organisation"]["legal_name"] == "Example Infrastructure (Pty) Ltd"
+    assert data["supplier_approval_status"] is None
+
+    profile = await client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {data['access_token']}"},
+    )
+    assert profile.status_code == 200
+    assert profile.json()["user"]["email"] == "admin@example.co.za"
+
+
+@pytest.mark.asyncio
+async def test_supplier_registration_creates_pending_review_application(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/auth/register",
+        json=registration_payload(
+            organisation_type="supplier",
+            email="supplier@example.co.za",
+            supplier_categories=["building-materials"],
+            supplier_service_regions=["KwaZulu-Natal"],
+        ),
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["organisation"]["type"] == "supplier"
+    assert data["supplier_approval_status"] == "pending"
+
+    profile = await client.get(
+        "/api/v1/suppliers/profile",
+        headers={"Authorization": f"Bearer {data['access_token']}"},
+    )
+    assert profile.status_code == 200
+    assert profile.json()["status"] == "pending"
+    assert profile.json()["active"] is False
+    assert profile.json()["categories"] == ["building-materials"]
+
+
+@pytest.mark.asyncio
+async def test_registration_rejects_duplicate_email_and_weak_password(
+    client: AsyncClient, seeded_entities: dict
+):
+    duplicate = await client.post(
+        "/api/v1/auth/register",
+        json=registration_payload(email="ESTIMATOR@AMANDLA.CO.ZA"),
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"]["code"] == "ACCOUNT_ALREADY_EXISTS"
+
+    weak_password = await client.post(
+        "/api/v1/auth/register",
+        json=registration_payload(email="new@example.co.za", password="short"),
+    )
+    assert weak_password.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_supplier_registration_requires_matching_profile_details(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/auth/register",
+        json=registration_payload(
+            organisation_type="supplier",
+            email="supplier@example.co.za",
+        ),
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "SUPPLIER_PROFILE_REQUIRED"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", ["/auth/register-supplier", "/auth/supplier-registration"])
+async def test_legacy_supplier_registration_routes_remain_disabled(client: AsyncClient, route: str):
+    response = await client.post(f"/api/v1{route}", json={})
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio

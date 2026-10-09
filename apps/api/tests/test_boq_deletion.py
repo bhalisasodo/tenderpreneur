@@ -87,15 +87,11 @@ async def test_delete_boq_with_quotes_and_requests(client: AsyncClient, seeded_e
     )
     assert broadcast_res.status_code == 200
 
-    # 5. Simulate quotes
-    sim_res = await client.post(f"/api/v1/boqs/{boq_id}/simulate-quotes", headers=headers)
-    assert sim_res.status_code == 200
-
-    # 6. Delete BoQ
+    # 5. Delete BoQ
     del_res = await client.delete(f"/api/v1/boqs/{boq_id}", headers=headers)
     assert del_res.status_code == 204
 
-    # 7. Verify BoQ is gone
+    # 6. Verify BoQ is gone
     get_res = await client.get(f"/api/v1/boqs/{boq_id}", headers=headers)
     assert get_res.status_code == 404
 

@@ -9,9 +9,8 @@ _llm_instance: LLMProvider = None
 def get_llm_provider() -> LLMProvider:
     global _llm_instance
     if _llm_instance is None:
-        if settings.llm_provider == "gemini" or settings.gemini_api_key:
+        if settings.llm_provider == "gemini":
             _llm_instance = GeminiLLMProvider(api_key=settings.gemini_api_key)
         else:
             _llm_instance = StubLLMProvider()
     return _llm_instance
-

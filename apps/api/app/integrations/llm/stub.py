@@ -3,8 +3,8 @@ from typing import List, Optional
 from app.domains.parsing.segmentation import (
     classify_candidate_line_item,
     clean_quantity_value,
-    is_legal_or_narrative_noise,
     is_text_corrupted,
+    quantity_needs_review,
     segment_document_text,
 )
 from app.integrations.llm.base import LLMProvider, ParseResultDTO, ParsedLineItemDTO
@@ -61,7 +61,19 @@ class StubLLMProvider:
             raise ValueError(f"GARBLED_DOCUMENT_TEXT: {corrupt_reason}")
 
         # Preprocessing: segment document text into candidates vs noise
-        candidate_lines, raw_excluded = segment_document_text(extracted_text)
+        candidate_lines, _raw_excluded = segment_document_text(extracted_text)
+        source_line_numbers = {}
+        for line_number, source_line in enumerate(extracted_text.splitlines(), start=1):
+            normalized_source_line = source_line.strip()
+            if normalized_source_line:
+                source_line_numbers.setdefault(normalized_source_line, []).append(line_number)
+        source_line_occurrences = {}
+
+        def source_reference(line: str) -> str:
+            occurrences = source_line_numbers.get(line, [])
+            occurrence = source_line_occurrences.get(line, 0)
+            source_line_occurrences[line] = occurrence + 1
+            return f"Line-{occurrences[occurrence]}" if occurrence < len(occurrences) else f"Line-{occurrence + 1}"
 
         line_items: List[ParsedLineItemDTO] = []
         excluded_candidates: List[ParsedLineItemDTO] = []
@@ -79,7 +91,6 @@ class StubLLMProvider:
         current_section = "General Building Scope"
         sections_detected = []
 
-        row_num = 1
         for line in candidate_lines:
             # Check for section or bill headers
             sec_match = re.search(r'^(bill\s+no\.?\s*\d+|section\s+[a-z0-9]+|part\s+\d+)[\s:\-–]+(.+)', line, re.I)
@@ -103,13 +114,30 @@ class StubLLMProvider:
             # Tabular/delimited lines
             parts = re.split(r'[\t|,;]', line)
             if len(parts) >= 3:
-                desc = parts[0].strip() if len(parts[0].strip()) > 5 else parts[1].strip()
-                qty_raw = parts[-2].strip() if len(parts) >= 4 else parts[-1].strip()
-                unit_raw = parts[-1].strip() if len(parts) >= 4 else "no"
+                first_value = parts[0].strip()
+                if len(parts) >= 4:
+                    ref = first_value or source_reference(line)
+                    desc = parts[1].strip()
+                    qty_raw = parts[-2].strip()
+                    unit_raw = parts[-1].strip()
+                elif re.fullmatch(r"(?:[A-Za-z]\.)?\d+(?:[.-]\d+)*", first_value):
+                    ref = first_value
+                    desc = parts[1].strip()
+                    qty_raw = parts[2].strip()
+                    unit_raw = ""
+                else:
+                    ref = source_reference(line)
+                    desc = parts[0].strip()
+                    qty_raw = parts[1].strip()
+                    unit_raw = parts[2].strip()
+                if not desc:
+                    desc = line
+                missing_unit = not unit_raw
+                if missing_unit:
+                    unit_raw = "no"
 
                 qty = clean_quantity_value(qty_raw)
                 unit = self._infer_unit(unit_raw)
-                ref = parts[0].strip() if (len(parts) >= 4 and len(parts[0].strip()) <= 12) else f"Row-{row_num}"
 
                 is_valid, conf, review_status, reason = classify_candidate_line_item(
                     description=desc,
@@ -118,6 +146,16 @@ class StubLLMProvider:
                     raw_reference=ref,
                     section_name=current_section,
                 )
+                missing_fields = []
+                if quantity_needs_review(qty_raw):
+                    missing_fields.append("quantity")
+                if missing_unit:
+                    missing_fields.append("unit")
+                if missing_fields:
+                    is_valid = True
+                    review_status = "needs_review"
+                    conf = min(conf, 0.55)
+                    reason = f"Confirm missing source {' and '.join(missing_fields)}."
 
                 cat = self._infer_category(desc + " " + current_section)
 
@@ -140,13 +178,12 @@ class StubLLMProvider:
                     line_items.append(item_dto)
                 else:
                     excluded_candidates.append(item_dto)
-                row_num += 1
 
             else:
                 # Regex heuristic for free text line items
                 match = re.search(r'^(?:([\dA-Za-z.]+)\s+)?(.+?)\s+([R$]?\d+(?:[.,]\d+)?)\s*([a-zA-Z0-9²³\/]+)?$', line)
                 if match:
-                    ref = match.group(1) or f"Row-{row_num}"
+                    ref = match.group(1) or source_reference(line)
                     desc = match.group(2).strip()
                     qty = clean_quantity_value(match.group(3))
                     unit = self._infer_unit(match.group(4) or "no")
@@ -158,6 +195,14 @@ class StubLLMProvider:
                         raw_reference=ref,
                         section_name=current_section,
                     )
+                    if not match.group(4):
+                        review_status = "needs_review"
+                        conf = min(conf, 0.55)
+                        reason = "Confirm the source unit; it was missing or unreadable."
+                    elif quantity_needs_review(match.group(3)):
+                        review_status = "needs_review"
+                        conf = min(conf, 0.55)
+                        reason = "Confirm the source quantity; it was missing or unreadable."
 
                     cat = self._infer_category(desc + " " + current_section)
 
@@ -180,7 +225,27 @@ class StubLLMProvider:
                         line_items.append(item_dto)
                     else:
                         excluded_candidates.append(item_dto)
-                    row_num += 1
+                else:
+                    ref = source_reference(line)
+                    is_valid, conf, review_status, reason = classify_candidate_line_item(
+                        description=line,
+                        unit="no",
+                        quantity=1.0,
+                        raw_reference=ref,
+                        section_name=current_section,
+                    )
+                    item_dto = ParsedLineItemDTO(
+                        source_row_reference=ref,
+                        section_name=current_section,
+                        description=line,
+                        unit="no",
+                        quantity=1.0,
+                        category=self._infer_category(line + " " + current_section),
+                        parsing_confidence=min(conf, 0.45),
+                        review_status="excluded" if not is_valid else "needs_review",
+                        exclusion_reason=reason or "Could not reliably extract quantity and unit; verify against the source.",
+                    )
+                    excluded_candidates.append(item_dto)
 
         return ParseResultDTO(
             title_hint=title_hint,
@@ -217,10 +282,17 @@ class StubLLMProvider:
                 return det_res
 
             # If not structured table, safely extract all cell text using openpyxl
-            extracted_text = extract_text_from_spreadsheet(document_bytes)
+            extracted_text = extract_text_from_spreadsheet(document_bytes, filename=filename)
             if not extracted_text or not extracted_text.strip():
                 raise ValueError("EMPTY_OR_UNREADABLE_EXCEL: We could not extract any readable rows from this Excel document. Please ensure it is a valid, uncorrupted Excel (.xlsx) file.")
             return await self.parse_boq_document(extracted_text, filename=filename, context=context)
+
+        if "csv" in mime or fname.endswith(".csv"):
+            from app.domains.parsing.spreadsheet import parse_structured_csv
+
+            result = parse_structured_csv(document_bytes, filename=filename)
+            if result:
+                return result
 
         # PDF documents
         if "pdf" in mime or fname.endswith(".pdf"):
@@ -275,4 +347,3 @@ class StubLLMProvider:
             raise ValueError("TEXT_DECODING_FAILED: Could not decode document text with valid encoding.")
 
         return await self.parse_boq_document(extracted_text, filename=filename, context=context)
-

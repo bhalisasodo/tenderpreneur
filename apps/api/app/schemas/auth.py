@@ -1,8 +1,8 @@
+import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import List, Literal, Optional
 
-from app.schemas.suppliers import SupplierProfileResponse
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class OrganisationResponse(BaseModel):
@@ -35,31 +35,54 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1)
 
 
-class SupplierRegistrationRequest(BaseModel):
+class RegistrationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    organisation_type: Literal["contractor", "supplier"]
     legal_name: str = Field(min_length=2, max_length=255)
     trading_name: Optional[str] = Field(default=None, max_length=255)
-    contact_name: str = Field(min_length=2, max_length=255)
-    email: str
-    phone: str = Field(min_length=7, max_length=50)
+    email: str = Field(max_length=255)
+    phone: Optional[str] = Field(default=None, max_length=50)
+    region: str = Field(min_length=2, max_length=100)
+    name: str = Field(min_length=2, max_length=255)
     password: str = Field(min_length=12, max_length=128)
-    categories: list[str] = Field(min_length=1)
-    service_regions: list[str] = Field(default_factory=lambda: ["Durban", "KwaZulu-Natal"])
-    preferred_contact_method: str = Field(default="email")
+    supplier_categories: List[
+        Literal[
+            "building-materials",
+            "concrete",
+            "earthworks",
+            "roofing",
+            "plumbing",
+            "electrical",
+            "ppe",
+            "finishes",
+        ]
+    ] = Field(default_factory=list, max_length=20)
+    supplier_service_regions: List[str] = Field(default_factory=list, max_length=20)
+    preferred_contact_method: Literal["email", "whatsapp", "sms"] = "email"
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, value: str) -> str:
-        normalized = value.strip().lower()
-        if "@" not in normalized or normalized.startswith("@") or normalized.endswith("@"):
-            raise ValueError("A valid email address is required.")
-        return normalized
+    def normalize_and_validate_email(cls, value: str) -> str:
+        email = value.strip().lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            raise ValueError("Enter a valid email address.")
+        return email
 
+    @field_validator("legal_name", "trading_name", "phone", "region", "name", mode="before")
+    @classmethod
+    def strip_optional_whitespace(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return value.strip() if isinstance(value, str) else value
 
-class SupplierRegistrationResponse(BaseModel):
-    organisation_id: str
-    user_id: str
-    status: str
-    message: str
+    @field_validator("supplier_service_regions")
+    @classmethod
+    def normalize_service_regions(cls, regions: List[str]) -> List[str]:
+        normalized = [region.strip() for region in regions]
+        if any(not region or len(region) > 100 for region in normalized):
+            raise ValueError("Service regions must be between 1 and 100 characters.")
+        return list(dict.fromkeys(normalized))
 
 
 class TokenResponse(BaseModel):
@@ -67,25 +90,4 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user: UserResponse
     organisation: OrganisationResponse
-
-
-class SupplierRegisterRequest(BaseModel):
-    legal_name: str = Field(..., min_length=2, max_length=255)
-    trading_name: Optional[str] = Field(None, max_length=255)
-    email: str = Field(..., min_length=5, max_length=255)
-    phone: str = Field(..., min_length=7, max_length=50)
-    region: str = Field(default="KwaZulu-Natal", max_length=100)
-    contact_name: str = Field(..., min_length=2, max_length=255)
-    password: str = Field(..., min_length=6, max_length=128)
-    categories: List[str] = Field(default_factory=lambda: ["building-materials"])
-    service_regions: List[str] = Field(default_factory=lambda: ["KwaZulu-Natal"])
-    preferred_contact_method: str = Field(default="whatsapp")
-    compliance_flags: Optional[Dict[str, Any]] = Field(default_factory=dict)
-
-
-class SupplierRegisterResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    user: UserResponse
-    organisation: OrganisationResponse
-    profile: Optional[SupplierProfileResponse] = None
+    supplier_approval_status: Optional[str] = None
