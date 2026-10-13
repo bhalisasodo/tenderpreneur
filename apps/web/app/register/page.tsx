@@ -23,6 +23,8 @@ const REGIONS = [
   "Northern Cape",
 ];
 
+const PILOT_SERVICE_REGIONS = ["eThekwini"];
+
 function initialAccountType(): "contractor" | "supplier" {
   if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("type") === "supplier") {
     return "supplier";
@@ -39,7 +41,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [region, setRegion] = useState("KwaZulu-Natal");
-  const [serviceRegions, setServiceRegions] = useState<string[]>(["KwaZulu-Natal"]);
+  const [serviceRegions, setServiceRegions] = useState<string[]>(["eThekwini"]);
   const [categories, setCategories] = useState<string[]>([]);
   const [contactMethod, setContactMethod] = useState<"email" | "whatsapp" | "sms">("email");
   const [password, setPassword] = useState("");
@@ -165,7 +167,7 @@ export default function RegisterPage() {
             <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div>
                 <p className="text-sm font-semibold text-slate-800">Supplier application</p>
-                <p className="mt-1 text-xs text-slate-600">Select the categories and areas you serve. You can update these later.</p>
+                <p className="mt-1 text-xs text-slate-600">Select the active pilot categories and the eThekwini service area. Applications are reviewed before marketplace access.</p>
               </div>
               <fieldset>
                 <legend className="mb-2 text-sm font-medium text-slate-700">Supply categories</legend>
@@ -183,7 +185,7 @@ export default function RegisterPage() {
               <fieldset>
                 <legend className="mb-2 text-sm font-medium text-slate-700">Service regions</legend>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {REGIONS.map((item) => (
+                  {PILOT_SERVICE_REGIONS.map((item) => (
                     <label key={item} className="flex items-center gap-2 text-xs text-slate-700">
                       <input type="checkbox" checked={serviceRegions.includes(item)}
                         onChange={() => toggleItem(item, serviceRegions, setServiceRegions)}

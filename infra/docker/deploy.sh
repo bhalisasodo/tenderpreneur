@@ -79,8 +79,12 @@ docker compose -f "$COMPOSE_FILE" exec -T api sh -lc 'cd /app && alembic upgrade
 echo "[+] Migrations complete."
 
 echo "[+] Verifying API health check..."
-HEALTH_RESPONSE=$(docker compose -f "$COMPOSE_FILE" exec -T api curl -s http://localhost:8000/health)
-echo "    Health status: $HEALTH_RESPONSE"
+HEALTH_RESPONSE=$(docker compose -f "$COMPOSE_FILE" exec -T api curl --fail --show-error --silent http://localhost:8000/health/ready)
+if [[ "$HEALTH_RESPONSE" != *'"status":"ready"'* ]]; then
+    echo "[-] API readiness check returned an unexpected response: $HEALTH_RESPONSE"
+    exit 1
+fi
+echo "    Readiness status: $HEALTH_RESPONSE"
 
 echo "============================================================"
 echo "    [SUCCESS] BOQPRO DEPLOYED SUCCESSFULLY!"

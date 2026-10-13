@@ -5,7 +5,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import jwt
-from fastapi import Depends, HTTPException, Request, Security, status
+from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -118,16 +118,10 @@ def decode_access_token(token: str) -> Optional[dict]:
 
 
 async def get_current_auth(
-    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Security(security_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> AuthContext:
-    # 1. Try Authorization header
     token = credentials.credentials if (credentials and credentials.credentials) else None
-
-    # 2. Fallback to query parameter (e.g. ?access_token=... for mobile RFQ links)
-    if not token:
-        token = request.query_params.get("access_token")
 
     if not token:
         raise HTTPException(

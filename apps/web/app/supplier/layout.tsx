@@ -17,7 +17,7 @@ export default function SupplierLayout({ children }: { children: React.ReactNode
     setSession(null);
     setError(null);
 
-    if (new URLSearchParams(window.location.search).has("access_token")) {
+    if (new URLSearchParams(window.location.hash.slice(1)).has("access_token")) {
       setDirectRfqLink(true);
       return () => { active = false; };
     }

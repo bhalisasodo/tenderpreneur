@@ -109,9 +109,10 @@ Edit `.env.production` using `nano .env.production`:
 - Set `BOQPRO_APP_BASE_URL` and `BOQPRO_PUBLIC_APP_URL` to your HTTPS app URL
 - Set `BOQPRO_CORS_ORIGINS` to a JSON array containing the HTTPS app origin
 - Set `BOQPRO_GEMINI_API_KEY=<your-google-gemini-api-key>`
-- Set `BOQPRO_SMTP_PASSWORD=<your-sendgrid-or-smtp-key>`
+- Set `BOQPRO_NOTIFICATION_PROVIDER=email`
+- Set `BOQPRO_SMTP_HOST`, `BOQPRO_SMTP_USERNAME`, and `BOQPRO_SMTP_PASSWORD` for an operational SMTP account
 
-The example defaults to the rule-based parser and console notifications. Configure Gemini and a real SMTP provider before relying on AI parsing or quote-request email delivery. Uploaded files are stored in a persistent local Docker volume; back it up with the database.
+Production startup rejects console/dry-run notifications, missing SMTP configuration, non-HTTPS application URLs, and non-HTTPS webhook endpoints. The production template deliberately leaves SMTP connection values blank so deployment fails until a real provider is configured. Verify the sender address/domain and test a real supplier notification before onboarding. Alternatively, select `webhook` and provide an HTTPS notification endpoint and provider token. Development console attempts are recorded as failures and never claim delivery. The parser defaults to the deterministic rule-based parser; configure Gemini only if AI-assisted parsing is required. Uploaded files are stored in a persistent local Docker volume; back it up with the database.
 
 ### 4.3. Run Automated Deployment
 Make the deployment script executable and run it:
@@ -138,12 +139,25 @@ docker compose -f infra/docker/docker-compose.yml --env-file .env.production ps
 Expected output: All services (`postgres`, `api`, `web`, `caddy`) show status `Up`.
 
 ### 5.2. Verify Public Health
-Confirm that the public health endpoint responds after deployment:
+Check API liveness and database readiness after deployment:
 ```bash
 curl --fail --show-error https://app.boqpro.co.za/health
+curl --fail --show-error https://app.boqpro.co.za/health/ready
 ```
 
-### 5.3. Account Onboarding
+### 5.3. Contractor and Supplier Login Smoke Test
+Provision dedicated, non-privileged contractor and approved supplier accounts in staging/UAT. Supply their credentials as protected environment variables (for example, protected CI secrets); do not put passwords in shell command arguments, repository files, or deployment logs. Then run the repository smoke test:
+```bash
+export BOQPRO_SMOKE_API_URL=https://app.boqpro.co.za/api/v1
+export BOQPRO_SMOKE_CONTRACTOR_EMAIL=contractor-uat@example.co.za
+export BOQPRO_SMOKE_CONTRACTOR_PASSWORD='<secret from your approved secret store>'
+export BOQPRO_SMOKE_SUPPLIER_EMAIL=supplier-uat@example.co.za
+export BOQPRO_SMOKE_SUPPLIER_PASSWORD='<secret from your approved secret store>'
+python scripts/production_smoke_test.py
+```
+The test checks API/database readiness, each role's password login, session identity, and the matching dashboard API. Keep these accounts in staging/UAT where possible; do not add fixed demo credentials or test tenants to production.
+
+### 5.4. Account Onboarding
 Contractors can register from the public web app and access their workspace immediately. Supplier registrations create pending applications; a platform operator must review and approve them before they can receive marketplace requests. Do not create platform operator accounts through public registration.
 
 BoQPro does not create demo users or seed production tenants automatically. Create the initial platform operator account interactively after verifying the administrator:
@@ -160,7 +174,14 @@ docker compose -f infra/docker/docker-compose.yml --env-file .env.production exe
 ```
 The command prompts for a password and confirmation; do not pass passwords as command-line arguments. Store operator credentials securely and restrict operator access to separately verified staff.
 
-Before opening public registration, verify the production domain, HTTPS, database backups, storage persistence, parser-provider configuration, outbound notifications and supplier-approval staffing. Contractor registrations are immediately enabled and do not currently require email verification.
+Before opening public registration, verify the production domain, HTTPS, database backups, storage persistence, parser-provider configuration, outbound notification delivery, and supplier-approval staffing. Contractor registrations are immediately enabled and do not currently require email verification; this remains an explicit launch risk and accounts should be admitted only under the approved pilot onboarding process.
+
+### 5.5. Non-code launch deliverables
+- Provision and harden the production host, domain/DNS, TLS, PostgreSQL, persistent storage, backup destination, and monitoring.
+- Configure and verify real SMTP or authenticated HTTPS webhook delivery with the provider; send and confirm a live supplier notification.
+- Store production and UAT secrets in an approved secret manager and provision separate contractor, approved supplier, and operator accounts.
+- Recruit, contact, and verify the controlled eThekwini supplier cohort; obtain consent for the notification channel and approve eligible profiles.
+- Complete stakeholder UAT, rehearse the support/incident and restore procedures, and record the go/no-go decision before public launch.
 
 ---
 

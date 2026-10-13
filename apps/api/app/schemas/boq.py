@@ -18,7 +18,7 @@ class LineItemBase(BaseModel):
     source_row_reference: Optional[str] = None
     description: str
     unit: str = "no"
-    quantity: float = 1.0
+    quantity: float = Field(default=1.0, gt=0, allow_inf_nan=False)
     category: str = "general-building"
     benchmark_min_minor: Optional[int] = None
     benchmark_max_minor: Optional[int] = None
@@ -35,7 +35,7 @@ class LineItemCreate(LineItemBase):
 class LineItemUpdate(BaseModel):
     description: Optional[str] = None
     unit: Optional[str] = None
-    quantity: Optional[float] = None
+    quantity: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
     category: Optional[str] = None
     benchmark_min_minor: Optional[int] = None
     benchmark_max_minor: Optional[int] = None
@@ -64,7 +64,7 @@ class BoQCreate(BaseModel):
     title: str = Field(..., json_schema_extra={"example": "School Renovation BoQ"})
     tender_reference: Optional[str] = Field(None, json_schema_extra={"example": "DOE-KZN-2026-088"})
     tender_deadline: Optional[datetime] = None
-    region: str = Field(default="KwaZulu-Natal", json_schema_extra={"example": "KwaZulu-Natal"})
+    region: str = Field(default="eThekwini", json_schema_extra={"example": "eThekwini"})
 
 
 class BoQUpdate(BaseModel):

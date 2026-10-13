@@ -110,7 +110,7 @@ class BoQ(Base):
     title = Column(String(255), nullable=False)
     tender_reference = Column(String(100), nullable=True)
     tender_deadline = Column(DateTime(timezone=True), nullable=True)
-    region = Column(String(100), nullable=False, default="KwaZulu-Natal")
+    region = Column(String(100), nullable=False, default="eThekwini")
     source_document_id = Column(String(36), ForeignKey("documents.id"), nullable=True)
     status = Column(String(50), nullable=False, default="draft")  # draft | parsed | in_sourcing | priced | completed
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)

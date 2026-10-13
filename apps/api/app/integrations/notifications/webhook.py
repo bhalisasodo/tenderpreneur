@@ -27,15 +27,8 @@ class WebhookNotificationProvider(NotificationProvider):
         submission_link: str,
     ) -> bool:
         if not self.webhook_url:
-            logger.info(
-                "[WEBHOOK DRY-RUN] Alert dispatched for %s (%s): %s of %s -> %s",
-                supplier_name,
-                supplier_contact,
-                quantity,
-                line_item_description,
-                submission_link,
-            )
-            return True
+            logger.error("Webhook notification provider is not configured; notification was not sent.")
+            return False
 
         payload = {
             "supplier_id": supplier_id,
@@ -58,6 +51,6 @@ class WebhookNotificationProvider(NotificationProvider):
             async with httpx.AsyncClient(timeout=10.0) as client:
                 res = await client.post(self.webhook_url, json=payload, headers=headers)
                 return res.is_success
-        except Exception as exc:
-            logger.error("Failed to post notification to webhook %s: %s", self.webhook_url, exc)
+        except httpx.HTTPError as exc:
+            logger.error("Failed to post notification to configured webhook: %s", exc)
             return False

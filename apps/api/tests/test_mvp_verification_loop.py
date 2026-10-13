@@ -51,7 +51,7 @@ async def test_full_mvp_procurement_loop(client: AsyncClient, seeded_entities: d
             "title": "Ethekwini Clinic New Outpatient Facility & Access Road",
             "tender_reference": "ETH-2026-CLN-09",
             "tender_deadline": (datetime.now(timezone.utc) + timedelta(days=14)).isoformat(),
-            "region": "KwaZulu-Natal",
+            "region": "eThekwini",
         },
         headers=c_headers,
     )

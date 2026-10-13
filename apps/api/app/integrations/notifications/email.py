@@ -1,4 +1,5 @@
 import asyncio
+import html
 import logging
 import smtplib
 from email.message import EmailMessage
@@ -17,23 +18,23 @@ class EmailNotificationProvider:
         port: int = 587,
         username: Optional[str] = None,
         password: Optional[str] = None,
-        use_tls: bool = True,
+        use_tls: Optional[bool] = None,
         from_email: Optional[str] = None,
     ):
         self.host = host or settings.smtp_host
         self.port = port or settings.smtp_port
         self.username = username or settings.smtp_username
         self.password = password or settings.smtp_password
-        self.use_tls = use_tls if use_tls is not None else settings.smtp_use_tls
+        self.use_tls = settings.smtp_use_tls if use_tls is None else use_tls
         self.from_email = from_email or settings.smtp_from_email or "BoQPro Sourcing <quotes@boqpro.co.za>"
 
     def _send_sync(self, msg: EmailMessage) -> bool:
         if not self.host:
             logger.info(
-                "SMTP host not configured. Notification recorded in dry-run mode for: %s",
+                "SMTP host not configured; notification was not sent to: %s",
                 msg["To"],
             )
-            return True
+            return False
 
         try:
             with smtplib.SMTP(self.host, self.port, timeout=10) as server:
@@ -43,8 +44,8 @@ class EmailNotificationProvider:
                     server.login(self.username, self.password)
                 server.send_message(msg)
             return True
-        except Exception as exc:
-            logger.error("Failed to send email to %s via SMTP: %s", msg["To"], exc)
+        except (smtplib.SMTPException, OSError) as exc:
+            logger.error("Failed to send email to %s via SMTP (%s).", msg["To"], type(exc).__name__)
             return False
 
     async def send_quote_request_notification(
@@ -61,9 +62,16 @@ class EmailNotificationProvider:
         submission_link: str,
     ) -> bool:
         msg = EmailMessage()
-        msg["Subject"] = f"Urgent RFQ: {boq_title} — {quantity} {unit}"
+        msg["Subject"] = "BoQPro request for quotation"
         msg["From"] = self.from_email
         msg["To"] = supplier_contact
+        escaped_supplier_name = html.escape(supplier_name)
+        escaped_boq_title = html.escape(boq_title)
+        escaped_item_description = html.escape(line_item_description)
+        escaped_quantity = html.escape(str(quantity))
+        escaped_unit = html.escape(unit)
+        escaped_deadline = html.escape(response_deadline_iso)
+        escaped_submission_link = html.escape(submission_link, quote=True)
 
         plain_text = f"""Dear {supplier_name},
 
@@ -106,25 +114,25 @@ support@boqpro.co.za | https://boqpro.co.za
       <h1>Request for Quotation</h1>
     </div>
     <div class="content">
-      <p style="margin-top: 0;">Dear <strong>{supplier_name}</strong>,</p>
+      <p style="margin-top: 0;">Dear <strong>{escaped_supplier_name}</strong>,</p>
       <p>A tendering contractor has requested pricing on your verified trade catalog for the following project:</p>
 
       <div class="item-card">
-        <div class="item-desc">{line_item_description}</div>
-        <div class="item-meta">Required Quantity: <strong>{quantity} {unit}</strong></div>
-        <div class="item-meta">Tender Reference: <strong>{boq_title}</strong></div>
+        <div class="item-desc">{escaped_item_description}</div>
+        <div class="item-meta">Required Quantity: <strong>{escaped_quantity} {escaped_unit}</strong></div>
+        <div class="item-meta">Tender Reference: <strong>{escaped_boq_title}</strong></div>
       </div>
 
-      <a href="{submission_link}" class="btn">Submit Quote Online (1-Click) &rarr;</a>
+      <a href="{escaped_submission_link}" class="btn">Submit Quote Online &rarr;</a>
 
-      <div class="deadline">Response Deadline: {response_deadline_iso}</div>
+      <div class="deadline">Response Deadline: {escaped_deadline}</div>
       <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 16px;">
         No login password required on mobile. Tap the button above to enter your unit price in ZAR.
       </p>
     </div>
     <div class="footer">
       BoQPro &bull; Bid-Pricing Infrastructure for South African Contractors &amp; Suppliers<br>
-      © 2026 BoQPro (Pty) Ltd. All rights reserved.
+      © BoQPro. All rights reserved.
     </div>
   </div>
 </body>

@@ -7,7 +7,16 @@ import { api } from "../../lib/api";
 
 function safeNextPath(): string | null {
   const next = new URLSearchParams(window.location.search).get("next");
-  return next?.startsWith("/") && !next.startsWith("//") ? next : null;
+  if (!next?.startsWith("/")) return null;
+
+  try {
+    const destination = new URL(next, window.location.origin);
+    return destination.origin === window.location.origin
+      ? `${destination.pathname}${destination.search}${destination.hash}`
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function LoginPage() {

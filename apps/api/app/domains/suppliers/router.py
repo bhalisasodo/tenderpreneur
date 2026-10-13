@@ -6,15 +6,25 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.models import SupplierProfile, utc_now
-from app.core.security import AuthContext, get_current_auth, require_operator, require_platform_admin, require_supplier
+from app.core.security import (
+    AuthContext,
+    require_contractor,
+    require_operator,
+    require_platform_admin,
+    require_supplier,
+)
 from app.domains.audit.service import log_audit_event
-from app.domains.matching.service import match_suppliers_for_item
+from app.domains.matching.service import (
+    PILOT_ACTIVE_CATEGORIES,
+    match_suppliers_for_item,
+    profile_has_pilot_scope,
+)
 from app.schemas.suppliers import (
+    SupplierApprovalRequest,
     SupplierApprovalResponse,
     SupplierMatchResponse,
     SupplierProfileResponse,
     SupplierProfileUpdate,
-    SupplierApprovalRequest,
     SupplierReviewResponse,
 )
 
@@ -41,6 +51,21 @@ async def get_supplier_profile(
             active=False,
         )
         db.add(profile)
+        await db.flush()
+        await log_audit_event(
+            db=db,
+            organisation_id=auth.organisation_id,
+            actor_user_id=auth.user_id,
+            entity_type="supplier_profile",
+            entity_id=profile.id,
+            action="supplier.profile_created",
+            after_json={
+                "categories": [],
+                "service_regions": [],
+                "status": "pending",
+                "active": False,
+            },
+        )
         await db.commit()
         await db.refresh(profile)
 
@@ -70,7 +95,21 @@ async def upsert_supplier_profile(
             updated_at=utc_now(),
         )
         db.add(profile)
+        before = None
+        action = "supplier.profile_created"
     else:
+        before = {
+            "categories": profile.categories or [],
+            "service_regions": profile.service_regions or [],
+            "compliance_flags": profile.compliance_flags or {},
+            "preferred_contact_method": profile.preferred_contact_method,
+            "status": profile.status,
+            "active": profile.active,
+        }
+        changed_marketplace_scope = (
+            (payload.categories is not None and payload.categories != profile.categories)
+            or (payload.service_regions is not None and payload.service_regions != profile.service_regions)
+        )
         if payload.categories is not None:
             profile.categories = payload.categories
         if payload.service_regions is not None:
@@ -79,8 +118,32 @@ async def upsert_supplier_profile(
             profile.compliance_flags = payload.compliance_flags
         if payload.preferred_contact_method is not None:
             profile.preferred_contact_method = payload.preferred_contact_method
-        profile.active = profile.status == "approved"
+        if changed_marketplace_scope and profile.status == "approved":
+            profile.status = "pending"
+            profile.active = False
+        else:
+            profile.active = profile.status == "approved"
         profile.updated_at = utc_now()
+        action = "supplier.profile_updated"
+
+    await db.flush()
+    await log_audit_event(
+        db=db,
+        organisation_id=auth.organisation_id,
+        actor_user_id=auth.user_id,
+        entity_type="supplier_profile",
+        entity_id=profile.id,
+        action=action,
+        before_json=before,
+        after_json={
+            "categories": profile.categories or [],
+            "service_regions": profile.service_regions or [],
+            "compliance_flags": profile.compliance_flags or {},
+            "preferred_contact_method": profile.preferred_contact_method,
+            "status": profile.status,
+            "active": profile.active,
+        },
+    )
 
     await db.commit()
     await db.refresh(profile)
@@ -174,6 +237,17 @@ async def _set_supplier_approval(
             detail={"code": "SUPPLIER_NOT_FOUND", "message": "Supplier organisation not found."},
         )
 
+    if approval_status == "approved" and not profile_has_pilot_scope(
+        profile.categories or [], profile.service_regions or []
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "SUPPLIER_PROFILE_INCOMPLETE",
+                "message": "A supplier must have an active pilot category and serve the eThekwini pilot region before approval.",
+            },
+        )
+
     before = {"approval_status": profile.status, "active": profile.active}
     profile.status = approval_status
     profile.active = active
@@ -211,7 +285,7 @@ async def _set_supplier_approval(
 @router.get("/all", response_model=List[SupplierMatchResponse])
 async def list_all_suppliers(
     db: AsyncSession = Depends(get_db),
-    auth: AuthContext = Depends(get_current_auth),
+    auth: AuthContext = Depends(require_contractor),
 ):
     stmt = (
         select(SupplierProfile)
@@ -227,7 +301,9 @@ async def list_all_suppliers(
     suppliers = []
     for p in profiles:
         org = p.organisation
-        if org:
+        if org and profile_has_pilot_scope(
+            p.categories or [], p.service_regions or []
+        ):
             suppliers.append(
                 SupplierMatchResponse(
                     organisation_id=org.id,
@@ -235,7 +311,11 @@ async def list_all_suppliers(
                     trading_name=org.trading_name,
                     email=org.email,
                     phone=org.phone,
-                    categories=p.categories or [],
+                    categories=[
+                        category
+                        for category in (p.categories or [])
+                        if category.strip().lower() in PILOT_ACTIVE_CATEGORIES
+                    ],
                     service_regions=p.service_regions or [],
                     preferred_contact_method=p.preferred_contact_method or "whatsapp",
                     match_reasons=[],
@@ -285,6 +365,6 @@ async def find_matched_suppliers(
     category: str = Query(...),
     region: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    auth: AuthContext = Depends(get_current_auth),
+    auth: AuthContext = Depends(require_contractor),
 ):
     return await match_suppliers_for_item(category=category, region=region, db=db)

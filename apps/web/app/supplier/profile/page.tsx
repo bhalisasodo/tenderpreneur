@@ -4,28 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "../../../lib/api";
 
-const ALL_CATEGORIES = [
+const PILOT_CATEGORIES = [
   { id: "building-materials", label: "Building Materials & Cement" },
   { id: "concrete", label: "Concrete & Ready-Mix" },
-  { id: "earthworks", label: "Earthworks & Plant Hire" },
-  { id: "roofing", label: "Roofing & Timber" },
-  { id: "plumbing", label: "Plumbing & Drainage" },
-  { id: "electrical", label: "Electrical" },
-  { id: "ppe", label: "Safety Equipment & PPE" },
-  { id: "finishes", label: "Finishes, Paint & Tiles" },
+  { id: "earthworks", label: "Civils & Earthworks" },
 ];
 
-const ALL_REGIONS = [
-  "KwaZulu-Natal",
-  "Gauteng",
-  "Western Cape",
-  "Eastern Cape",
-  "Free State",
-  "Mpumalanga",
-  "Limpopo",
-  "North West",
-  "Northern Cape",
-];
+const PILOT_REGIONS = ["eThekwini"];
+const PILOT_SERVICE_REGION_ALIASES = new Set(["ethekwini", "durban", "kwazulu-natal", "national", "all"]);
+const PILOT_CATEGORY_IDS = new Set(PILOT_CATEGORIES.map((category) => category.id));
 
 export default function SupplierProfilePage() {
   const [categories, setCategories] = useState<string[]>([]);
@@ -44,8 +31,11 @@ export default function SupplierProfilePage() {
     api.getSupplierProfile()
       .then((data) => {
         if (data && data.categories) {
-          setCategories(data.categories || []);
-          setRegions(data.service_regions || []);
+          setCategories((data.categories || []).filter((category: string) => PILOT_CATEGORY_IDS.has(category)));
+          const servesPilotRegion = (data.service_regions || []).some((region: string) =>
+            PILOT_SERVICE_REGION_ALIASES.has(region.trim().toLowerCase())
+          );
+          setRegions(servesPilotRegion ? ["eThekwini"] : []);
           setContactMethod(data.preferred_contact_method || "whatsapp");
           setStatus(data.status || "pending");
           setActive(Boolean(data.active));
@@ -73,6 +63,10 @@ export default function SupplierProfilePage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!categories.length || !regions.length) {
+      alert("Select at least one active pilot category and the eThekwini service region.");
+      return;
+    }
 
     try {
       setSaving(true);
@@ -112,7 +106,7 @@ export default function SupplierProfilePage() {
         <div>
           <h3 className="font-bold text-slate-900 text-base">Trade &amp; Region Profile</h3>
           <p className="text-xs text-slate-500">
-            Configure the categories and regions you supply to receive automated matching quote requests.
+            The live supplier pilot is limited to building materials, concrete, earthworks, and the eThekwini metro. Changes to categories or service area require renewed platform approval.
           </p>
         </div>
 
@@ -153,7 +147,7 @@ export default function SupplierProfilePage() {
               Supply Categories (Select all that apply)
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {ALL_CATEGORIES.map((cat) => {
+              {PILOT_CATEGORIES.map((cat) => {
                 const checked = categories.includes(cat.id);
                 return (
                   <button
@@ -177,10 +171,10 @@ export default function SupplierProfilePage() {
           {/* Service Regions */}
           <div className="space-y-2">
             <label className="block text-xs font-bold text-slate-800">
-              Service Provinces / Regions
+              Pilot Service Region
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {ALL_REGIONS.map((r) => {
+              {PILOT_REGIONS.map((r) => {
                 const checked = regions.includes(r);
                 return (
                   <button

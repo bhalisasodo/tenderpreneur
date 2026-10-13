@@ -57,7 +57,7 @@ async def test_delete_boq_with_quotes_and_requests(client: AsyncClient, seeded_e
     # 1. Create BoQ
     create_res = await client.post(
         "/api/v1/boqs",
-        json={"title": "Concrete Substructure", "region": "KwaZulu-Natal"},
+        json={"title": "Concrete Substructure", "region": "eThekwini"},
         headers=headers,
     )
     boq_id = create_res.json()["id"]

@@ -35,6 +35,43 @@ async def test_supplier_approval_requires_platform_operator(
 
 
 @pytest.mark.asyncio
+async def test_operator_cannot_approve_supplier_without_marketplace_scope(
+    client: AsyncClient,
+    seeded_entities: dict,
+    pending_supplier: dict,
+    db_session,
+):
+    profile = pending_supplier["profile"]
+    profile.categories = []
+    profile.service_regions = []
+    await db_session.commit()
+
+    response = await client.post(
+        f"/api/v1/suppliers/{pending_supplier['organisation'].id}/approve",
+        headers={"Authorization": f"Bearer {seeded_entities['operator_token']}"},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "SUPPLIER_PROFILE_INCOMPLETE"
+
+
+@pytest.mark.asyncio
+async def test_operator_cannot_approve_supplier_outside_pilot_scope(
+    client: AsyncClient, seeded_entities: dict, pending_supplier: dict, db_session
+):
+    profile = pending_supplier["profile"]
+    profile.categories = ["electrical"]
+    profile.service_regions = ["Gauteng"]
+    await db_session.commit()
+
+    response = await client.post(
+        f"/api/v1/suppliers/{pending_supplier['organisation'].id}/approve",
+        headers={"Authorization": f"Bearer {seeded_entities['platform_admin_token']}"},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "SUPPLIER_PROFILE_INCOMPLETE"
+
+
+@pytest.mark.asyncio
 async def test_supplier_cannot_self_activate_profile(client: AsyncClient, pending_supplier: dict):
     response = await client.post(
         "/api/v1/suppliers/profile",
@@ -52,7 +89,19 @@ async def test_supplier_cannot_self_activate_profile(client: AsyncClient, pendin
 
 
 @pytest.mark.asyncio
-async def test_approved_supplier_profile_update_preserves_activation(
+async def test_supplier_profile_rejects_categories_outside_pilot(
+    client: AsyncClient, pending_supplier: dict
+):
+    response = await client.post(
+        "/api/v1/suppliers/profile",
+        json={"categories": ["electrical"]},
+        headers={"Authorization": f"Bearer {pending_supplier['token']}"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_approved_supplier_marketplace_scope_change_requires_review(
     client: AsyncClient, seeded_entities: dict
 ):
     response = await client.post(
@@ -66,5 +115,33 @@ async def test_approved_supplier_profile_update_preserves_activation(
         headers={"Authorization": f"Bearer {seeded_entities['supplier1_token']}"},
     )
     assert response.status_code == 200
+    assert response.json()["active"] is False
+    assert response.json()["status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_approved_supplier_contact_preference_update_preserves_activation(
+    client: AsyncClient, seeded_entities: dict
+):
+    response = await client.post(
+        "/api/v1/suppliers/profile",
+        json={"preferred_contact_method": "email"},
+        headers={"Authorization": f"Bearer {seeded_entities['supplier1_token']}"},
+    )
+    assert response.status_code == 200
     assert response.json()["active"] is True
     assert response.json()["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_supplier_cannot_list_supplier_directory(
+    client: AsyncClient, seeded_entities: dict
+):
+    headers = {"Authorization": f"Bearer {seeded_entities['supplier1_token']}"}
+    all_suppliers = await client.get("/api/v1/suppliers/all", headers=headers)
+    matched_suppliers = await client.get(
+        "/api/v1/suppliers/match?category=concrete&region=KwaZulu-Natal",
+        headers=headers,
+    )
+    assert all_suppliers.status_code == 403
+    assert matched_suppliers.status_code == 403

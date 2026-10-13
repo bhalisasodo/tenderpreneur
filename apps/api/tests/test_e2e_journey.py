@@ -27,7 +27,7 @@ async def test_full_contractor_supplier_procurement_journey(client: AsyncClient,
         json={
             "title": "Ethekwini Clinic New Outpatient Facility",
             "tender_reference": "ETH-2026-CLN-09",
-            "region": "KwaZulu-Natal",
+            "region": "eThekwini",
         },
         headers=c_headers,
     )

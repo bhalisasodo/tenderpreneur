@@ -33,11 +33,13 @@ class Settings(BaseSettings):
     max_upload_size_bytes: int = 15 * 1024 * 1024  # 15 MB
 
     # External Provider Integrations
-    llm_provider: str = "stub"  # "stub", "openai", "gemini"
+    llm_provider: str = "stub"  # "stub" or "gemini"
     openai_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-2.5-flash"
-    notification_provider: str = "console"  # "console", "email", "memory", "webhook"
+    notification_provider: str = "console"  # "console", "email", "smtp", "webhook"
+    notification_webhook_url: Optional[str] = None
+    notification_webhook_token: Optional[str] = None
 
     # Outbound Email (SMTP)
     smtp_host: Optional[str] = None
@@ -80,6 +82,7 @@ class Settings(BaseSettings):
             "llm_provider", "openai_api_key", "gemini_api_key", "gemini_model",
             "notification_provider", "smtp_host", "smtp_port", "smtp_username",
             "smtp_password", "smtp_use_tls", "smtp_from_email",
+            "notification_webhook_url", "notification_webhook_token",
             "public_app_url",
             "parser_high_confidence_threshold", "parser_low_confidence_threshold",
             "cors_origins",
@@ -99,10 +102,37 @@ class Settings(BaseSettings):
     def validate_cors_origins(cls, origins: List[str]) -> List[str]:
         normalized = []
         for origin in origins:
-            parsed = urlparse(origin)
-            if not parsed.netloc:
-                raise ValueError(f"Production security violation: Invalid CORS origin: {origin!r}")
-            normalized.append(origin.rstrip("/"))
+            value = origin.strip()
+            parsed = urlparse(value)
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username
+                or parsed.password
+                or parsed.path not in {"", "/"}
+                or parsed.params
+                or parsed.query
+                or parsed.fragment
+                or "*" in parsed.netloc
+            ):
+                raise ValueError(f"Invalid CORS origin: {origin!r}")
+            normalized.append(f"{parsed.scheme}://{parsed.netloc}".rstrip("/"))
+        return normalized
+
+    @field_validator("notification_provider")
+    @classmethod
+    def validate_notification_provider(cls, provider: str) -> str:
+        normalized = provider.strip().lower()
+        if normalized not in {"console", "email", "smtp", "webhook"}:
+            raise ValueError("BOQPRO_NOTIFICATION_PROVIDER must be console, email, smtp, or webhook.")
+        return normalized
+
+    @field_validator("llm_provider")
+    @classmethod
+    def validate_llm_provider(cls, provider: str) -> str:
+        normalized = provider.strip().lower()
+        if normalized not in {"stub", "gemini"}:
+            raise ValueError("BOQPRO_LLM_PROVIDER must be stub or gemini.")
         return normalized
 
     @model_validator(mode="after")
@@ -140,6 +170,57 @@ class Settings(BaseSettings):
             ):
                 raise ValueError(
                     "Production security violation: CORS origins must be configured with HTTPS endpoints only."
+                )
+            for setting_name, value in (
+                ("BOQPRO_APP_BASE_URL", self.app_base_url),
+                ("BOQPRO_PUBLIC_APP_URL", self.public_app_url),
+            ):
+                parsed_url = urlparse(value)
+                if (
+                    parsed_url.scheme != "https"
+                    or not parsed_url.netloc
+                    or parsed_url.username
+                    or parsed_url.password
+                    or parsed_url.query
+                    or parsed_url.fragment
+                ):
+                    raise ValueError(
+                        f"Production security violation: {setting_name} must be an HTTPS base URL without credentials, query parameters, or fragments."
+                    )
+
+            notification_provider = self.notification_provider.lower()
+            if notification_provider in {"email", "smtp"}:
+                if not self.smtp_host:
+                    raise ValueError(
+                        "Production security violation: BOQPRO_SMTP_HOST is required when email notifications are enabled."
+                    )
+                if not self.smtp_use_tls:
+                    raise ValueError(
+                        "Production security violation: BOQPRO_SMTP_USE_TLS must be enabled for email notifications."
+                    )
+            elif notification_provider == "webhook":
+                webhook_url = urlparse(self.notification_webhook_url or "")
+                if (
+                    webhook_url.scheme != "https"
+                    or not webhook_url.netloc
+                    or webhook_url.username
+                    or webhook_url.password
+                    or webhook_url.fragment
+                ):
+                    raise ValueError(
+                        "Production security violation: BOQPRO_NOTIFICATION_WEBHOOK_URL must be an HTTPS URL without embedded credentials or fragments."
+                    )
+                if not self.notification_webhook_token:
+                    raise ValueError(
+                        "Production security violation: BOQPRO_NOTIFICATION_WEBHOOK_TOKEN is required when webhook notifications are enabled."
+                    )
+            else:
+                raise ValueError(
+                    "Production security violation: BOQPRO_NOTIFICATION_PROVIDER must be email, smtp, or webhook."
+                )
+            if self.llm_provider == "gemini" and not self.gemini_api_key:
+                raise ValueError(
+                    "Production security violation: BOQPRO_GEMINI_API_KEY is required when Gemini parsing is enabled."
                 )
         return self
 

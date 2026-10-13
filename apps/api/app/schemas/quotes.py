@@ -1,11 +1,11 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class QuoteSubmitRequest(BaseModel):
     unit_price_minor: int = Field(..., gt=0, description="Unit price in integer minor cents (e.g. 125000 = R1,250.00)")
-    currency: str = Field(default="ZAR")
+    currency: Literal["ZAR"] = "ZAR"
     lead_time_days: Optional[int] = None
     notes: Optional[str] = None
 
@@ -56,6 +56,9 @@ class QuoteRequestResponse(BaseModel):
     is_expired: bool = False
     quotes: List[QuoteResponse] = []
     supplier_count: int = 0
+    notification_attempted_count: int = 0
+    notification_accepted_count: int = 0
+    notification_failed_count: int = 0
 
 
 class LineItemComparisonResponse(BaseModel):
@@ -97,5 +100,5 @@ class QuoteSelectRequest(BaseModel):
 
 class PriceOverrideRequest(BaseModel):
     price_minor: int = Field(..., ge=0, description="Override price in minor cents")
-    currency: str = Field(default="ZAR")
+    currency: Literal["ZAR"] = "ZAR"
     reason: str = Field(..., min_length=3)

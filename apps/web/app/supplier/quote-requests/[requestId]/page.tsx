@@ -26,6 +26,7 @@ export default function SupplierQuoteSubmissionPage() {
   const router = useRouter();
 
   const [request, setRequest] = useState<QuoteRequestDTO | null>(null);
+  const [rfqAccessToken, setRfqAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,20 +37,23 @@ export default function SupplierQuoteSubmissionPage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    loadRequest();
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = hashParams.get("access_token");
+    if (accessToken) {
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${window.location.search}`
+      );
+      setRfqAccessToken(accessToken);
+    }
+    loadRequest(accessToken ?? undefined);
   }, [requestId]);
 
-  const loadRequest = async () => {
+  const loadRequest = async (accessToken?: string) => {
     try {
       setLoading(true);
-      if (typeof window !== "undefined" && window.location.search) {
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get("access_token");
-        if (token) {
-          localStorage.setItem("tp_token", token);
-        }
-      }
-      const data = await api.getSupplierQuoteRequest(requestId);
+      const data = await api.getSupplierQuoteRequest(requestId, accessToken);
       setRequest(data);
       if (data.quotes && data.quotes.length > 0) {
         const q = data.quotes[0];
@@ -90,12 +94,13 @@ export default function SupplierQuoteSubmissionPage() {
         requestId,
         minorCents,
         leadTimeDays || undefined,
-        notes.trim() || undefined
+        notes.trim() || undefined,
+        rfqAccessToken ?? undefined
       );
       setSuccess(true);
-      setTimeout(() => {
-        router.push("/supplier");
-      }, 1500);
+      if (!rfqAccessToken) {
+        setTimeout(() => router.push("/supplier"), 1500);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to submit quote");
       setSubmitting(false);
@@ -170,7 +175,9 @@ export default function SupplierQuoteSubmissionPage() {
 
       {success && (
         <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-2xl p-4 text-xs font-bold text-center shadow-sm">
-          ✓ Quote submitted successfully to contractor! Redirecting...
+          {rfqAccessToken
+            ? "Quote submitted successfully to contractor. You may close this page."
+            : "Quote submitted successfully to contractor! Redirecting..."}
         </div>
       )}
 

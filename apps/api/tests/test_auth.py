@@ -35,6 +35,13 @@ async def test_health_check(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_readiness_check_verifies_database(client: AsyncClient):
+    response = await client.get("/health/ready")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+
+
+@pytest.mark.asyncio
 async def test_login_success(client: AsyncClient, seeded_entities: dict):
     response = await client.post(
         "/api/v1/auth/login",
@@ -55,6 +62,7 @@ async def test_login_invalid_email(client: AsyncClient):
     )
     assert response.status_code == 401
     assert response.json()["detail"]["code"] == "INVALID_CREDENTIALS"
+    assert response.json()["detail"]["message"] == "Invalid email address or password."
 
 
 @pytest.mark.asyncio
@@ -65,6 +73,7 @@ async def test_login_rejects_invalid_password(client: AsyncClient, seeded_entiti
     )
     assert response.status_code == 401
     assert response.json()["detail"]["code"] == "INVALID_CREDENTIALS"
+    assert response.json()["detail"]["message"] == "Invalid email address or password."
 
 
 @pytest.mark.asyncio
@@ -154,6 +163,20 @@ async def test_supplier_registration_creates_pending_review_application(client: 
     assert profile.json()["status"] == "pending"
     assert profile.json()["active"] is False
     assert profile.json()["categories"] == ["building-materials"]
+
+
+@pytest.mark.asyncio
+async def test_supplier_registration_rejects_categories_outside_pilot(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/auth/register",
+        json=registration_payload(
+            organisation_type="supplier",
+            email="electrical@example.co.za",
+            supplier_categories=["electrical"],
+            supplier_service_regions=["eThekwini"],
+        ),
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio

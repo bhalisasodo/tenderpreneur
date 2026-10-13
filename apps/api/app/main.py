@@ -2,6 +2,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -18,7 +20,7 @@ from app.domains.suppliers.router import router as suppliers_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if settings.environment not in ("testing", "production", "prod"):
+    if settings.environment.lower() not in ("testing", "production", "prod"):
         # Initialize database tables on startup (especially for SQLite dev mode)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -33,14 +35,15 @@ app = FastAPI(
 )
 
 # Robust CORS configuration for Next.js frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+cors_options = {
+    "allow_origins": settings.cors_origins,
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+}
+if settings.environment.lower() not in {"production", "prod"}:
+    cors_options["allow_origin_regex"] = r"http://(localhost|127\.0\.0\.1)(:\d+)?"
+app.add_middleware(CORSMiddleware, **cors_options)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -102,6 +105,23 @@ async def root():
 @app.get("/api/v1/health", tags=["Health"])
 async def health_check() -> dict[str, str]:
     return {"status": "ok", "app": settings.app_name, "version": settings.app_version}
+
+
+@app.get("/health/ready", tags=["Health"])
+@app.get("/api/v1/health/ready", tags=["Health"])
+async def readiness_check() -> JSONResponse:
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "dependency": "database"},
+        )
+    return JSONResponse(
+        status_code=200,
+        content={"status": "ready", "app": settings.app_name, "version": settings.app_version},
+    )
 
 
 # Register domain routers under API v1 prefix

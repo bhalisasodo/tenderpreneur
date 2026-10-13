@@ -19,6 +19,15 @@ const CATEGORY_ICONS: Record<string, string> = {
   "general-building": "📋",
 };
 
+const PILOT_MARKETPLACE_CATEGORIES = new Set(["building-materials", "concrete", "earthworks"]);
+
+function isPilotMarketplaceItem(item: LineItemDTO, region: string): boolean {
+  return (
+    PILOT_MARKETPLACE_CATEGORIES.has(item.category.toLowerCase().trim()) &&
+    ["ethekwini", "durban"].includes(region.toLowerCase().trim())
+  );
+}
+
 function checkIsCorrupted(text: string): { isCorrupted: boolean; reason?: string } {
   if (!text) return { isCorrupted: false };
   if (text.includes("\ufffd")) {
@@ -99,7 +108,12 @@ export default function BoQReviewPage() {
       // Default select all active accepted items for broadcast
       const acceptedIds = new Set(
         data.line_items
-          .filter((i) => i.review_status !== "excluded" && i.quantity > 0 && i.pricing_status === "unsourced")
+          .filter((i) =>
+            i.review_status !== "excluded" &&
+            i.quantity > 0 &&
+            i.pricing_status === "unsourced" &&
+            isPilotMarketplaceItem(i, data.region)
+          )
           .map((i) => i.id)
       );
       setSelectedItemIds(acceptedIds);
@@ -112,6 +126,9 @@ export default function BoQReviewPage() {
   };
 
   const toggleSelect = (id: string) => {
+    if (!boq) return;
+    const item = boq.line_items.find((lineItem) => lineItem.id === id);
+    if (!item || !isPilotMarketplaceItem(item, boq.region)) return;
     const next = new Set(selectedItemIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
@@ -134,7 +151,7 @@ export default function BoQReviewPage() {
   const selectAllFiltered = () => {
     const next = new Set(selectedItemIds);
     filteredItems.forEach((i) => {
-      if (i.review_status !== "excluded") next.add(i.id);
+      if (i.review_status !== "excluded" && isPilotMarketplaceItem(i, boq?.region || "")) next.add(i.id);
     });
     setSelectedItemIds(next);
   };
@@ -147,7 +164,9 @@ export default function BoQReviewPage() {
 
   const selectAcceptedOnly = () => {
     if (!boq) return;
-    const accepted = boq.line_items.filter((i) => i.review_status === "accepted" && i.quantity > 0);
+    const accepted = boq.line_items.filter(
+      (i) => i.review_status === "accepted" && i.quantity > 0 && isPilotMarketplaceItem(i, boq.region)
+    );
     setSelectedItemIds(new Set(accepted.map((i) => i.id)));
   };
 
@@ -160,7 +179,7 @@ export default function BoQReviewPage() {
         line_items: boq.line_items.map((i) => (i.id === updated.id ? updated : i)),
       });
       const next = new Set(selectedItemIds);
-      next.add(item.id);
+      if (isPilotMarketplaceItem(item, boq.region)) next.add(item.id);
       setSelectedItemIds(next);
       setActionNotice(`✓ Confirmed item: "${item.description.slice(0, 40)}..."`);
     } catch (err: any) {
@@ -177,7 +196,7 @@ export default function BoQReviewPage() {
         line_items: boq.line_items.map((i) => (i.id === updated.id ? updated : i)),
       });
       const next = new Set(selectedItemIds);
-      next.add(item.id);
+      if (isPilotMarketplaceItem(item, boq.region)) next.add(item.id);
       setSelectedItemIds(next);
       setActionNotice(`✓ Restored item to active queue: "${item.description.slice(0, 40)}..."`);
     } catch (err: any) {
@@ -272,14 +291,20 @@ export default function BoQReviewPage() {
 
       const deadline = new Date(Date.now() + deadlineHours * 60 * 60 * 1000).toISOString();
       let successCount = 0;
+      let acceptedCount = 0;
+      let failedCount = 0;
 
       for (const itemId of Array.from(selectedItemIds)) {
         const qr = await api.createQuoteRequest(itemId, deadline);
-        await api.broadcastQuoteRequest(qr.id);
+        const broadcast = await api.broadcastQuoteRequest(qr.id);
         successCount++;
+        acceptedCount += broadcast.notification_accepted_count || 0;
+        failedCount += broadcast.notification_failed_count || 0;
       }
 
-      setBroadcastSuccess(`Successfully broadcast quote requests for ${successCount} line items!`);
+      setBroadcastSuccess(
+        `Created ${successCount} quote requests: ${acceptedCount} supplier notifications accepted by providers, ${failedCount} failed.`
+      );
       setTimeout(() => {
         router.push(`/contractor/boqs/${boq.id}/quotes`);
       }, 1200);
@@ -311,6 +336,7 @@ export default function BoQReviewPage() {
     corruptedItemsMap.has(id)
   ).length;
   const hasCorruptedSelected = corruptedSelectedCount > 0;
+  const hasPilotMarketplaceRegion = ["ethekwini", "durban"].includes(boq.region.toLowerCase().trim());
 
   // Count review metrics
   const needsReviewCount = boq.line_items.filter((i) => i.review_status === "needs_review").length;
@@ -322,6 +348,12 @@ export default function BoQReviewPage() {
   boq.line_items.forEach((item) => {
     categoryCounts[item.category] = (categoryCounts[item.category] || 0) + 1;
   });
+  const eligibleFilteredItems = filteredItems.filter((item) =>
+    isPilotMarketplaceItem(item, boq.region)
+  );
+  const allEligibleFilteredItemsSelected =
+    eligibleFilteredItems.length > 0 &&
+    eligibleFilteredItems.every((item) => selectedItemIds.has(item.id));
 
   return (
     <div className="space-y-6">
@@ -461,13 +493,19 @@ export default function BoQReviewPage() {
         </div>
       )}
 
+      {!hasPilotMarketplaceRegion && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
+          Supplier quote sourcing is currently limited to the eThekwini (Durban) metro. Parsing, editing, and manual pricing remain available for this BoQ.
+        </div>
+      )}
+
       {/* Broadcast Action Panel */}
       <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-2xl p-6 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="text-xs font-bold uppercase tracking-wider text-blue-300">Supplier Quote Sourcing</div>
           <h3 className="text-lg font-bold">Broadcast Confirmed Items to Matched Suppliers</h3>
           <p className="text-xs text-blue-200">
-            {selectedItemIds.size} of {acceptedCount} active items selected for market quote sourcing in {boq.region}.
+            {selectedItemIds.size} items selected for the eThekwini pilot marketplace. Eligible categories: building materials, concrete, and earthworks.
           </p>
         </div>
 
@@ -488,7 +526,7 @@ export default function BoQReviewPage() {
 
           <button
             onClick={handleBroadcast}
-            disabled={broadcasting || selectedItemIds.size === 0 || hasCorruptedSelected}
+            disabled={broadcasting || selectedItemIds.size === 0 || hasCorruptedSelected || !hasPilotMarketplaceRegion}
             className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-lg transition flex items-center space-x-2 ${
               hasCorruptedSelected
                 ? "bg-rose-700 hover:bg-rose-800 cursor-not-allowed opacity-90"
@@ -613,9 +651,9 @@ export default function BoQReviewPage() {
                   <th className="py-3 px-4 w-10">
                     <input
                       type="checkbox"
-                      checked={filteredItems.length > 0 && filteredItems.every((i) => selectedItemIds.has(i.id))}
+                      checked={allEligibleFilteredItemsSelected}
                       onChange={() => {
-                        if (filteredItems.every((i) => selectedItemIds.has(i.id))) {
+                        if (allEligibleFilteredItemsSelected) {
                           deselectAllFiltered();
                         } else {
                           selectAllFiltered();
@@ -642,6 +680,7 @@ export default function BoQReviewPage() {
                   const isNeedsReview = item.review_status === "needs_review";
                   const isCorrupted = corruptedItemsMap.has(item.id);
                   const corruptionReason = corruptedItemsMap.get(item.id);
+                  const isPilotEligible = isPilotMarketplaceItem(item, boq.region);
 
                   return (
                     <tr
@@ -663,6 +702,8 @@ export default function BoQReviewPage() {
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleSelect(item.id)}
+                          disabled={!isPilotEligible}
+                          title={!isPilotEligible ? "Not eligible for the current eThekwini supplier pilot." : undefined}
                           className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
                       </td>
@@ -674,6 +715,11 @@ export default function BoQReviewPage() {
                         {isCorrupted && (
                           <div className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded mt-1 text-rose-800 bg-rose-100 border border-rose-300 space-x-1">
                             <span>🚫 Corrupted Text: {corruptionReason}</span>
+                          </div>
+                        )}
+                        {!isPilotEligible && (
+                          <div className="mt-1 text-[10px] font-semibold text-slate-500">
+                            Not eligible for the current supplier pilot
                           </div>
                         )}
                         {item.exclusion_reason && !isCorrupted && (

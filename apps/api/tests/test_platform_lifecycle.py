@@ -43,7 +43,7 @@ async def test_auto_select_best_quotes_endpoint(
     boq_res = await client.post(
         "/api/v1/boqs",
         headers=contractor_headers,
-        json={"title": "Auto Select Demo Tender", "region": "KwaZulu-Natal"},
+        json={"title": "Auto Select Demo Tender", "region": "eThekwini"},
     )
     boq_id = boq_res.json()["id"]
 

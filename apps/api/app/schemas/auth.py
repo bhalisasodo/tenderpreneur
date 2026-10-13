@@ -47,16 +47,7 @@ class RegistrationRequest(BaseModel):
     name: str = Field(min_length=2, max_length=255)
     password: str = Field(min_length=12, max_length=128)
     supplier_categories: List[
-        Literal[
-            "building-materials",
-            "concrete",
-            "earthworks",
-            "roofing",
-            "plumbing",
-            "electrical",
-            "ppe",
-            "finishes",
-        ]
+        Literal["building-materials", "concrete", "earthworks"]
     ] = Field(default_factory=list, max_length=20)
     supplier_service_regions: List[str] = Field(default_factory=list, max_length=20)
     preferred_contact_method: Literal["email", "whatsapp", "sms"] = "email"

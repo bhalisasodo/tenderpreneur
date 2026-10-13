@@ -120,6 +120,9 @@ export interface QuoteRequestDTO {
   is_expired: boolean;
   quotes: QuoteDTO[];
   supplier_count: number;
+  notification_attempted_count?: number;
+  notification_accepted_count?: number;
+  notification_failed_count?: number;
 }
 
 export interface LineItemComparisonDTO {
@@ -211,25 +214,16 @@ class ApiClient {
 
   private async ensureToken(): Promise<string | null> {
     if (typeof window === "undefined") return null;
-    let token = localStorage.getItem("tp_token");
-    if (!token) {
-      if (typeof window !== "undefined" && window.location.search) {
-        try {
-          const urlParams = new URLSearchParams(window.location.search);
-          const urlToken = urlParams.get("access_token");
-          if (urlToken) {
-            localStorage.setItem("tp_token", urlToken);
-            return urlToken;
-          }
-        } catch {}
-      }
-    }
-    return token;
+    return localStorage.getItem("tp_token");
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    authorizationToken?: string
+  ): Promise<T> {
     const apiBase = this.getApiBase();
-    let token = await this.ensureToken();
+    const token = authorizationToken ?? await this.ensureToken();
 
     const headers: Record<string, string> = {
       ...(options.headers as Record<string, string>),
@@ -494,15 +488,20 @@ class ApiClient {
     return this.request<QuoteRequestDTO[]>("/suppliers/quote-requests");
   }
 
-  async getSupplierQuoteRequest(requestId: string): Promise<QuoteRequestDTO> {
-    return this.request<QuoteRequestDTO>(`/suppliers/quote-requests/${requestId}`);
+  async getSupplierQuoteRequest(requestId: string, accessToken?: string): Promise<QuoteRequestDTO> {
+    return this.request<QuoteRequestDTO>(
+      `/suppliers/quote-requests/${requestId}`,
+      {},
+      accessToken
+    );
   }
 
   async submitSupplierQuote(
     requestId: string,
     unitPriceMinor: number,
     leadTimeDays?: number,
-    notes?: string
+    notes?: string,
+    accessToken?: string
   ): Promise<QuoteDTO> {
     return this.request<QuoteDTO>(`/quote-requests/${requestId}/quotes`, {
       method: "POST",
@@ -512,7 +511,7 @@ class ApiClient {
         notes,
         currency: "ZAR",
       }),
-    });
+    }, accessToken);
   }
 
   // Exports & Audit

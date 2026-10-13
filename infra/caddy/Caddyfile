@@ -26,8 +26,9 @@
         reverse_proxy api:8000
     }
 
-    # Public health endpoint used by container and ingress probes.
-    handle /health {
+    # Public liveness and readiness endpoints used by ingress probes.
+    @health path /health /health/*
+    handle @health {
         reverse_proxy api:8000
     }
 

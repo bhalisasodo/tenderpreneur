@@ -25,11 +25,13 @@ The request includes the organisation type (`contractor` or `supplier`), legal a
   "name": "Supplier Contact",
   "password": "a-long-unique-password",
   "supplier_categories": ["building-materials"],
-  "supplier_service_regions": ["KwaZulu-Natal"]
+  "supplier_service_regions": ["eThekwini"]
 }
 ```
 
 Contractor registrations create an active administrator account. Supplier registrations create an inactive profile with `pending` status and require platform-operator approval before marketplace matching. A successful response returns the authenticated session and organisation.
+
+The initial supplier marketplace pilot is restricted to the eThekwini (Durban) metro and the `building-materials`, `concrete`, and `earthworks` categories. Supplier approval requires at least one active pilot category and service coverage that includes the pilot region. Electrical, plumbing, roofing, and other categories may still appear in parsed BoQs but cannot be matched or broadcast during this pilot.
 
 ## Health
 
@@ -112,7 +114,9 @@ Returns `204 No Content`.
 
 `POST /quote-requests/{quote_request_id}/broadcast`
 
-The backend matches suppliers using category + region and creates delivery records.
+The backend matches active, approved suppliers using category + region and creates delivery records. During the initial pilot, matching is limited to eThekwini (Durban) and active pilot categories (`building-materials`, `concrete`, and `earthworks`); out-of-scope items and regions cannot be broadcast.
+The response reports attempted, provider-accepted, and failed notification counts.
+Provider acceptance is not confirmation that a message reached the supplier.
 
 ### List contractor quote requests
 
@@ -127,7 +131,7 @@ The backend matches suppliers using category + region and creates delivery recor
 ```json
 {
   "categories": ["building-materials"],
-  "service_regions": ["KwaZulu-Natal"],
+  "service_regions": ["eThekwini"],
   "preferred_contact_method": "whatsapp"
 }
 ```

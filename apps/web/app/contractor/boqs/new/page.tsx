@@ -9,7 +9,7 @@ export default function NewBoQPage() {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [tenderRef, setTenderRef] = useState("");
-  const [region, setRegion] = useState("KwaZulu-Natal");
+  const [region, setRegion] = useState("eThekwini");
   const [inputMode, setInputMode] = useState<"upload" | "paste">("upload");
   const [file, setFile] = useState<File | null>(null);
   const [pastedText, setPastedText] = useState("");
@@ -110,22 +110,14 @@ export default function NewBoQPage() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Project Province / Region <span className="text-red-500">*</span>
+                Project region <span className="text-red-500">*</span>
               </label>
               <select
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
                 className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
-                <option value="KwaZulu-Natal">KwaZulu-Natal</option>
-                <option value="Gauteng">Gauteng</option>
-                <option value="Western Cape">Western Cape</option>
-                <option value="Eastern Cape">Eastern Cape</option>
-                <option value="Free State">Free State</option>
-                <option value="Mpumalanga">Mpumalanga</option>
-                <option value="Limpopo">Limpopo</option>
-                <option value="North West">North West</option>
-                <option value="Northern Cape">Northern Cape</option>
+                <option value="eThekwini">eThekwini (Durban) metro</option>
               </select>
             </div>
           </div>

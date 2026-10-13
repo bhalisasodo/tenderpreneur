@@ -1,6 +1,6 @@
 import hashlib
 import uuid
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.money import calculate_total_minor
 from app.core.models import AuditEvent, BoQ, Document, LineItem, QuoteRequest, utc_now
 from app.core.security import AuthContext, require_contractor
 from app.domains.audit.service import log_audit_event
@@ -78,9 +79,9 @@ async def list_contractor_boqs(
     summaries = []
     for b in boqs:
         total_priced = sum(
-            int((li.final_price_minor or 0) * (li.quantity or 1.0))
+            calculate_total_minor(li.final_price_minor or 0, li.quantity)
             for li in b.line_items
-            if li.final_price_minor
+            if li.final_price_minor is not None
         )
         summaries.append(
             BoQSummaryResponse(
@@ -673,5 +674,3 @@ async def get_parser_feedback_summary(
             for e in events[:20]
         ],
     }
-
-

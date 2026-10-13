@@ -1,10 +1,10 @@
-import io
+import asyncio
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.core.config import Settings
-from app.core.rate_limit import InMemoryRateLimiter, reset_auth_rate_limiter
+from app.core.rate_limit import InMemoryRateLimiter
 from app.integrations.notifications.email import EmailNotificationProvider
 
 
@@ -30,6 +30,10 @@ def test_production_debug_mode_disabled():
             password_salt="a_super_strong_cryptographic_salt_key_of_length_greater_than_32",
             database_url="postgresql+psycopg://boqpro:secret@postgres:5432/boqpro",
             cors_origins=["https://app.boqpro.co.za"],
+            app_base_url="https://app.boqpro.co.za",
+            public_app_url="https://app.boqpro.co.za",
+            notification_provider="email",
+            smtp_host="smtp.example.co.za",
         )
     assert "Production security violation" in str(exc_info.value)
     assert "BOQPRO_DEBUG" in str(exc_info.value)
@@ -38,6 +42,10 @@ def test_production_debug_mode_disabled():
 def test_production_valid_configuration_passes():
     """Verify system boots cleanly in production when compliant secrets and settings are provided."""
     valid_settings = Settings(
+        app_base_url="https://app.boqpro.co.za",
+        public_app_url="https://app.boqpro.co.za",
+        notification_provider="email",
+        smtp_host="smtp.example.co.za",
         environment="production",
         debug=False,
         jwt_secret="a_super_strong_cryptographic_secret_key_of_length_greater_than_32",
@@ -78,6 +86,18 @@ def test_production_requires_https_cors_origins():
     assert "CORS origins" in str(exc_info.value)
 
 
+def test_production_rejects_cors_origins_with_paths():
+    with pytest.raises(ValidationError, match="Invalid CORS origin"):
+        Settings(
+            environment="production",
+            debug=False,
+            jwt_secret="a_super_strong_cryptographic_secret_key_of_length_greater_than_32",
+            password_salt="a_super_strong_cryptographic_salt_key_of_length_greater_than_32",
+            database_url="postgresql+psycopg://user:password@localhost:5432/boqpro",
+            cors_origins=["https://app.boqpro.co.za/untrusted-path"],
+        )
+
+
 def test_cors_origins_parsing_from_string():
     """Verify CORS origins string is automatically parsed into a list."""
     s = Settings(
@@ -108,7 +128,7 @@ def test_auth_rate_limiter_exceeded():
 
 @pytest.mark.asyncio
 async def test_email_notification_provider_dry_run():
-    """Verify EmailNotificationProvider runs safely when no SMTP host is configured."""
+    """An unconfigured email provider must report failure, not simulated delivery."""
     provider = EmailNotificationProvider(host=None)
     success = await provider.send_quote_request_notification(
         supplier_id="sup-1",
@@ -122,7 +142,37 @@ async def test_email_notification_provider_dry_run():
         response_deadline_iso="2026-09-10T12:00:00Z",
         submission_link="https://app.boqpro.co.za/quotes/submit?token=abc",
     )
-    assert success is True
+    assert success is False
+
+
+@pytest.mark.asyncio
+async def test_email_notification_escapes_user_supplied_html(monkeypatch: pytest.MonkeyPatch):
+    sent_messages = []
+
+    async def capture_message(function, message):
+        sent_messages.append(message)
+        return True
+
+    monkeypatch.setattr(asyncio, "to_thread", capture_message)
+    provider = EmailNotificationProvider(host="smtp.example.co.za")
+    await provider.send_quote_request_notification(
+        supplier_id="supplier-id",
+        supplier_name="<img src=x onerror=alert(1)>",
+        supplier_contact="supplier@example.co.za",
+        channel="email",
+        boq_title="<script>alert(1)</script>",
+        line_item_description="<svg onload=alert(1)>",
+        quantity=1,
+        unit="item",
+        response_deadline_iso="2026-12-31T23:59:59Z",
+        submission_link="https://app.example.co.za/rfq#access_token=token",
+    )
+
+    html_body = sent_messages[0].get_body(preferencelist=("html",)).get_content()
+    assert "&lt;img" in html_body
+    assert "&lt;script&gt;" in html_body
+    assert "&lt;svg" in html_body
+    assert "<script>" not in html_body
 
 
 @pytest.mark.asyncio
@@ -158,3 +208,48 @@ async def test_file_upload_size_and_type_validation(client, seeded_entities):
     assert oversized_res.status_code == 413
     assert oversized_res.json()["detail"]["code"] == "FILE_TOO_LARGE"
 
+
+def test_production_rejects_console_notifications():
+    with pytest.raises(ValidationError, match="NOTIFICATION_PROVIDER"):
+        Settings(
+            environment="production",
+            debug=False,
+            jwt_secret="a_super_strong_cryptographic_secret_key_of_length_greater_than_32",
+            password_salt="a_super_strong_cryptographic_salt_key_of_length_greater_than_32",
+            database_url="postgresql+psycopg://boqpro:password@localhost:5432/boqpro",
+            cors_origins=["https://app.boqpro.co.za"],
+            app_base_url="https://app.boqpro.co.za",
+            public_app_url="https://app.boqpro.co.za",
+            notification_provider="console",
+        )
+
+
+def test_production_requires_real_smtp_configuration():
+    with pytest.raises(ValidationError, match="SMTP_HOST"):
+        Settings(
+            environment="production",
+            debug=False,
+            jwt_secret="a_super_strong_cryptographic_secret_key_of_length_greater_than_32",
+            password_salt="a_super_strong_cryptographic_salt_key_of_length_greater_than_32",
+            database_url="postgresql+psycopg://boqpro:password@localhost:5432/boqpro",
+            cors_origins=["https://app.boqpro.co.za"],
+            app_base_url="https://app.boqpro.co.za",
+            public_app_url="https://app.boqpro.co.za",
+            notification_provider="email",
+        )
+
+
+def test_production_webhook_requires_authentication_token():
+    with pytest.raises(ValidationError, match="NOTIFICATION_WEBHOOK_TOKEN"):
+        Settings(
+            environment="production",
+            debug=False,
+            jwt_secret="a_super_strong_cryptographic_secret_key_of_length_greater_than_32",
+            password_salt="a_super_strong_cryptographic_salt_key_of_length_greater_than_32",
+            database_url="postgresql+psycopg://user:password@localhost:5432/boqpro",
+            cors_origins=["https://app.boqpro.co.za"],
+            app_base_url="https://app.boqpro.co.za",
+            public_app_url="https://app.boqpro.co.za",
+            notification_provider="webhook",
+            notification_webhook_url="https://notify.example.co.za/boqpro",
+        )

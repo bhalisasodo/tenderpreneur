@@ -5,6 +5,8 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from app.core.money import calculate_total_minor
+
 try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter, landscape
@@ -66,9 +68,10 @@ class StandardExportRenderer:
             qty = float(item.get("quantity", 1.0))
             price_minor = item.get("final_price_minor")
             unit_rate = (price_minor / 100.0) if price_minor is not None else 0.0
-            line_total = unit_rate * qty
-            if price_minor:
-                total_minor += int(price_minor * qty)
+            line_total_minor = calculate_total_minor(price_minor or 0, qty)
+            line_total = line_total_minor / 100.0
+            if price_minor is not None:
+                total_minor += line_total_minor
 
             status = item.get("pricing_status", "unsourced").replace("_", " ").title()
             quote_ref = item.get("quote_reference") or item.get("override_reason") or "-"
@@ -190,9 +193,10 @@ class StandardExportRenderer:
             qty = float(item.get("quantity", 1.0))
             price_minor = item.get("final_price_minor")
             unit_rate = (price_minor / 100.0) if price_minor is not None else 0.0
-            line_total = unit_rate * qty
-            if price_minor:
-                total_minor += int(price_minor * qty)
+            line_total_minor = calculate_total_minor(price_minor or 0, qty)
+            line_total = line_total_minor / 100.0
+            if price_minor is not None:
+                total_minor += line_total_minor
 
             status = item.get("pricing_status", "unsourced").replace("_", " ").title()
             quote_ref = item.get("quote_reference") or item.get("override_reason") or "-"

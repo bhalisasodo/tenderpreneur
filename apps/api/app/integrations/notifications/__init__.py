@@ -13,8 +13,11 @@ def get_notification_provider() -> NotificationProvider:
         provider_name = settings.notification_provider.lower()
         if provider_name in ("email", "smtp"):
             _notification_instance = EmailNotificationProvider()
-        elif provider_name in ("webhook", "whatsapp", "sms"):
-            _notification_instance = WebhookNotificationProvider()
+        elif provider_name == "webhook":
+            _notification_instance = WebhookNotificationProvider(
+                webhook_url=settings.notification_webhook_url,
+                auth_token=settings.notification_webhook_token,
+            )
         else:
             _notification_instance = ConsoleNotificationProvider()
     return _notification_instance

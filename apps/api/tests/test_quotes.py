@@ -13,7 +13,7 @@ async def test_quote_flow_and_server_deadline_enforcement(client: AsyncClient, s
     # 1. Create BoQ and Line Item
     boq_res = await client.post(
         "/api/v1/boqs",
-        json={"title": "Tender Quote Test", "region": "KwaZulu-Natal"},
+        json={"title": "Tender Quote Test", "region": "eThekwini"},
         headers=c_headers,
     )
     boq_id = boq_res.json()["id"]
@@ -54,6 +54,13 @@ async def test_quote_flow_and_server_deadline_enforcement(client: AsyncClient, s
     assert any(req["id"] == qr_id for req in inbox_items)
 
     # 5. Supplier submits valid quote on time
+    unsupported_currency = await client.post(
+        f"/api/v1/quote-requests/{qr_id}/quotes",
+        json={"unit_price_minor": 10500, "currency": "USD"},
+        headers=s_headers,
+    )
+    assert unsupported_currency.status_code == 422
+
     quote_res = await client.post(
         f"/api/v1/quote-requests/{qr_id}/quotes",
         json={
@@ -70,13 +77,35 @@ async def test_quote_flow_and_server_deadline_enforcement(client: AsyncClient, s
     assert quote["total_price_minor"] == 1050000  # R10,500.00 (100 * 10500)
     quote_id = quote["id"]
 
+    revision_res = await client.post(
+        f"/api/v1/quote-requests/{qr_id}/quotes",
+        json={
+            "unit_price_minor": 11000,
+            "currency": "ZAR",
+            "lead_time_days": 3,
+            "notes": "Revised delivery-inclusive rate",
+        },
+        headers=s_headers,
+    )
+    assert revision_res.status_code == 201
+    assert revision_res.json()["id"] == quote_id
+    assert revision_res.json()["unit_price_minor"] == 11000
+
+    audit_res = await client.get(f"/api/v1/boqs/{boq_id}/audit", headers=c_headers)
+    assert audit_res.status_code == 200
+    revision_event = next(
+        event for event in audit_res.json() if event["action"] == "quote.revised"
+    )
+    assert revision_event["before_json"]["unit_price_minor"] == 10500
+    assert revision_event["after_json"]["unit_price_minor"] == 11000
+
     # 6. Contractor checks comparison
     comp_res = await client.get(f"/api/v1/boqs/{boq_id}/quote-comparison", headers=c_headers)
     assert comp_res.status_code == 200
     comp_data = comp_res.json()
     li_comp = comp_data["line_items"][0]
     assert len(li_comp["quotes"]) == 1
-    assert li_comp["lowest_quote"]["unit_price_minor"] == 10500
+    assert li_comp["lowest_quote"]["unit_price_minor"] == 11000
 
     # 7. Contractor selects quote
     select_res = await client.post(
@@ -85,8 +114,21 @@ async def test_quote_flow_and_server_deadline_enforcement(client: AsyncClient, s
         headers=c_headers,
     )
     assert select_res.status_code == 200
-    assert select_res.json()["final_price_minor"] == 10500
+    assert select_res.json()["final_price_minor"] == 11000
     assert select_res.json()["pricing_status"] == "selected"
+
+    revised_selected_quote = await client.post(
+        f"/api/v1/quote-requests/{qr_id}/quotes",
+        json={
+            "unit_price_minor": 10100,
+            "currency": "ZAR",
+            "lead_time_days": 2,
+            "notes": "Revised after selection",
+        },
+        headers=s_headers,
+    )
+    assert revised_selected_quote.status_code == 409
+    assert revised_selected_quote.json()["detail"]["code"] == "QUOTE_ALREADY_SELECTED"
 
     # 8. Contractor applies manual price override
     override_res = await client.post(
@@ -112,14 +154,14 @@ async def test_deadline_expired_rejection(client: AsyncClient, seeded_entities: 
 
     boq_res = await client.post(
         "/api/v1/boqs",
-        json={"title": "Deadline BoQ", "region": "KwaZulu-Natal"},
+        json={"title": "Deadline BoQ", "region": "eThekwini"},
         headers=c_headers,
     )
     boq_id = boq_res.json()["id"]
 
     item_res = await client.post(
         f"/api/v1/boqs/{boq_id}/line-items",
-        json={"description": "Timber", "category": "roofing"},
+        json={"description": "Concrete aggregate", "category": "concrete"},
         headers=c_headers,
     )
     item_id = item_res.json()["id"]

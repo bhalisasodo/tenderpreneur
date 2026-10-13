@@ -3,13 +3,14 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 SupplierProfileStatus = Literal["pending", "approved", "rejected", "suspended"]
+SupplierCategory = Literal["building-materials", "concrete", "earthworks"]
 
 
 class SupplierProfileBase(BaseModel):
     categories: List[str] = Field(default_factory=list)
     service_regions: List[str] = Field(default_factory=list)
     compliance_flags: Dict[str, Any] = Field(default_factory=dict)
-    preferred_contact_method: str = Field(default="whatsapp")
+    preferred_contact_method: Literal["email", "whatsapp", "sms"] = Field(default="email")
     status: SupplierProfileStatus = Field(default="pending")
     active: bool = False
 
@@ -21,10 +22,10 @@ class SupplierProfileCreate(SupplierProfileBase):
 class SupplierProfileUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    categories: Optional[List[str]] = None
+    categories: Optional[List[SupplierCategory]] = None
     service_regions: Optional[List[str]] = None
     compliance_flags: Optional[Dict[str, Any]] = None
-    preferred_contact_method: Optional[str] = None
+    preferred_contact_method: Optional[Literal["email", "whatsapp", "sms"]] = None
     active: Optional[bool] = None
 
 

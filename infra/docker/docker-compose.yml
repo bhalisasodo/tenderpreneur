@@ -37,6 +37,8 @@ services:
       BOQPRO_GEMINI_API_KEY: ${BOQPRO_GEMINI_API_KEY:-}
       BOQPRO_GEMINI_MODEL: ${BOQPRO_GEMINI_MODEL:-gemini-2.5-flash}
       BOQPRO_NOTIFICATION_PROVIDER: ${BOQPRO_NOTIFICATION_PROVIDER:-console}
+      BOQPRO_NOTIFICATION_WEBHOOK_URL: ${BOQPRO_NOTIFICATION_WEBHOOK_URL:-}
+      BOQPRO_NOTIFICATION_WEBHOOK_TOKEN: ${BOQPRO_NOTIFICATION_WEBHOOK_TOKEN:-}
       BOQPRO_PUBLIC_APP_URL: ${BOQPRO_PUBLIC_APP_URL:?BOQPRO_PUBLIC_APP_URL must be set}
       BOQPRO_SMTP_HOST: ${BOQPRO_SMTP_HOST:-}
       BOQPRO_SMTP_PORT: ${BOQPRO_SMTP_PORT:-587}
@@ -66,8 +68,19 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
     ports:
       - "127.0.0.1:3000:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
   caddy:
@@ -83,8 +96,10 @@ services:
       - boqpro_caddy_data:/data
       - boqpro_caddy_config:/config
     depends_on:
-      - web
-      - api
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
 
 volumes:
   boqpro_postgres:

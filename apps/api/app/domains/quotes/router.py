@@ -7,11 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.money import calculate_total_minor
 from app.core.models import (
     BoQ,
     LineItem,
     NotificationDelivery,
-    Organisation,
     Quote,
     QuoteRequest,
     QuoteRequestSupplier,
@@ -197,6 +197,11 @@ async def broadcast_quote_request(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "QUOTE_REQUEST_NOT_FOUND", "message": "Quote request not found."},
         )
+    if qr.status != "open" or check_is_expired(qr.response_deadline):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "QUOTE_REQUEST_CLOSED", "message": "This quote request is closed or past its response deadline."},
+        )
 
     line_item = qr.line_item
     boq = line_item.boq
@@ -212,61 +217,133 @@ async def broadcast_quote_request(
             },
         )
 
-    target_supplier_ids = []
-    if payload and payload.supplier_organisation_ids:
-        target_supplier_ids = payload.supplier_organisation_ids
+    matched = await match_suppliers_for_item(category=line_item.category, region=boq.region, db=db)
+    matched_supplier_ids = {supplier.organisation_id for supplier in matched}
+    explicit_supplier_ids = list(dict.fromkeys(payload.supplier_organisation_ids)) if (
+        payload and payload.supplier_organisation_ids
+    ) else None
+    if explicit_supplier_ids is not None:
+        if not set(explicit_supplier_ids).issubset(matched_supplier_ids):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "code": "INVALID_SUPPLIER_RECIPIENTS",
+                    "message": "Every selected recipient must match this line item's category and region.",
+                },
+            )
+        target_supplier_ids = explicit_supplier_ids
     else:
-        matched = await match_suppliers_for_item(category=line_item.category, region=boq.region, db=db)
-        target_supplier_ids = [m.organisation_id for m in matched]
+        target_supplier_ids = [supplier.organisation_id for supplier in matched]
 
+    profile_result = await db.execute(
+        select(SupplierProfile)
+        .options(selectinload(SupplierProfile.organisation))
+        .where(
+            SupplierProfile.organisation_id.in_(target_supplier_ids),
+            SupplierProfile.status == "approved",
+            SupplierProfile.active.is_(True),
+        )
+    )
+    eligible_profiles = {
+        profile.organisation_id: profile
+        for profile in profile_result.scalars().all()
+        if profile.organisation and profile.organisation.type == "supplier"
+    }
+    if explicit_supplier_ids is not None and set(explicit_supplier_ids) != set(eligible_profiles):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "INVALID_SUPPLIER_RECIPIENTS",
+                "message": "Every selected recipient must be an active, approved supplier.",
+            },
+        )
+    target_supplier_ids = [
+        supplier_id for supplier_id in target_supplier_ids if supplier_id in eligible_profiles
+    ]
     if not target_supplier_ids:
-        all_sup_stmt = select(Organisation.id).where(Organisation.type == "supplier")
-        sup_res = await db.execute(all_sup_stmt)
-        target_supplier_ids = [r[0] for r in sup_res.all()]
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "NO_MATCHED_SUPPLIERS",
+                "message": "No active, approved suppliers match this line item's category and region.",
+            },
+        )
 
-    existing_supplier_ids = {s.supplier_organisation_id for s in qr.suppliers}
+    existing_suppliers = {s.supplier_organisation_id: s for s in qr.suppliers}
     notification_provider = get_notification_provider()
 
-    broadcast_count = 0
+    attempted_count = 0
+    accepted_count = 0
+    failed_count = 0
     for sup_id in target_supplier_ids:
-        if sup_id not in existing_supplier_ids:
+        existing_delivery = existing_suppliers.get(sup_id)
+        if existing_delivery and existing_delivery.status != "failed":
+            continue
+
+        supplier_profile = eligible_profiles[sup_id]
+        supplier_org = supplier_profile.organisation
+        if existing_delivery:
+            qrs = existing_delivery
+        else:
             qrs = QuoteRequestSupplier(
                 quote_request_id=qr.id,
                 supplier_organisation_id=sup_id,
-                status="sent",
+                status="failed",
             )
             db.add(qrs)
-            broadcast_count += 1
+            qr.suppliers.append(qrs)
 
-            sup_stmt = select(Organisation).where(Organisation.id == sup_id)
-            sup_res = await db.execute(sup_stmt)
-            supplier_org = sup_res.scalar_one_or_none()
-            if supplier_org:
-                rfq_token = create_rfq_access_token(quote_request_id=qr.id, supplier_org_id=supplier_org.id)
-                base_url = settings.app_base_url.rstrip("/")
-                submission_link = f"{base_url}/supplier/quote-requests/{qr.id}?access_token={rfq_token}"
-                delivered = await notification_provider.send_quote_request_notification(
-                    supplier_id=supplier_org.id,
-                    supplier_name=supplier_org.legal_name,
-                    supplier_contact=supplier_org.phone or supplier_org.email,
-                    channel="whatsapp",
-                    boq_title=boq.title,
-                    line_item_description=line_item.description,
-                    quantity=line_item.quantity,
-                    unit=line_item.unit,
-                    response_deadline_iso=qr.response_deadline.isoformat(),
-                    submission_link=submission_link,
-                )
-                db.add(
-                    NotificationDelivery(
-                        quote_request_id=qr.id,
-                        supplier_organisation_id=supplier_org.id,
-                        channel="whatsapp",
-                        recipient=supplier_org.phone or supplier_org.email,
-                        status="sent" if delivered else "failed",
-                        error_message=None if delivered else "Notification provider reported delivery failure.",
-                    )
-                )
+        attempted_count += 1
+        provider_name = settings.notification_provider.lower()
+        if provider_name in {"email", "smtp"}:
+            channel = "email"
+            recipient = supplier_org.email
+        else:
+            channel = supplier_profile.preferred_contact_method
+            recipient = (
+                supplier_org.email
+                if channel == "email"
+                else supplier_org.phone or ""
+            )
+
+        accepted = False
+        delivery_error = None
+        if channel in {"sms", "whatsapp"} and not recipient:
+            delivery_error = "Supplier has no phone number for the selected notification channel."
+        else:
+            rfq_token = create_rfq_access_token(quote_request_id=qr.id, supplier_org_id=supplier_org.id)
+            base_url = settings.app_base_url.rstrip("/")
+            submission_link = (
+                f"{base_url}/supplier/quote-requests/{qr.id}#access_token={rfq_token}"
+            )
+            accepted = await notification_provider.send_quote_request_notification(
+                supplier_id=supplier_org.id,
+                supplier_name=supplier_org.legal_name,
+                supplier_contact=recipient,
+                channel=channel,
+                boq_title=boq.title,
+                line_item_description=line_item.description,
+                quantity=line_item.quantity,
+                unit=line_item.unit,
+                response_deadline_iso=qr.response_deadline.isoformat(),
+                submission_link=submission_link,
+            )
+            if not accepted:
+                delivery_error = "Notification provider did not accept the message."
+
+        qrs.status = "sent" if accepted else "failed"
+        accepted_count += int(accepted)
+        failed_count += int(not accepted)
+        db.add(
+            NotificationDelivery(
+                quote_request_id=qr.id,
+                supplier_organisation_id=supplier_org.id,
+                channel=channel,
+                recipient=recipient,
+                status="sent" if accepted else "failed",
+                error_message=delivery_error,
+            )
+        )
 
     await log_audit_event(
         db=db,
@@ -275,7 +352,12 @@ async def broadcast_quote_request(
         entity_type="quote_request",
         entity_id=qr.id,
         action="quote_request.broadcast",
-        after_json={"broadcast_count": broadcast_count, "total_suppliers": len(target_supplier_ids)},
+        after_json={
+            "attempted_count": attempted_count,
+            "accepted_count": accepted_count,
+            "failed_count": failed_count,
+            "total_suppliers": len(target_supplier_ids),
+        },
     )
 
     await db.commit()
@@ -297,7 +379,10 @@ async def broadcast_quote_request(
         created_at=qr.created_at,
         is_expired=check_is_expired(qr.response_deadline),
         quotes=[],
-        supplier_count=broadcast_count or len(target_supplier_ids) or len(qr.suppliers),
+        supplier_count=len(target_supplier_ids),
+        notification_attempted_count=attempted_count,
+        notification_accepted_count=accepted_count,
+        notification_failed_count=failed_count,
     )
 
 
@@ -638,7 +723,7 @@ async def submit_quote(
         )
 
     line_item = qr.line_item
-    total_price = int(payload.unit_price_minor * line_item.quantity)
+    total_price = calculate_total_minor(payload.unit_price_minor, line_item.quantity)
     now = utc_now()
 
     existing_quote_stmt = select(Quote).where(
@@ -649,13 +734,30 @@ async def submit_quote(
     quote = eq_res.scalar_one_or_none()
 
     if quote:
+        if quote.is_selected:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "QUOTE_ALREADY_SELECTED",
+                    "message": "A selected quote cannot be revised. Ask the contractor to select a different quote or create a new quote request.",
+                },
+            )
+        before_quote = {
+            "unit_price_minor": quote.unit_price_minor,
+            "total_price_minor": quote.total_price_minor,
+            "currency": quote.currency,
+            "lead_time_days": quote.lead_time_days,
+            "notes": quote.notes,
+        }
         quote.unit_price_minor = payload.unit_price_minor
         quote.total_price_minor = total_price
         quote.currency = payload.currency
         quote.lead_time_days = payload.lead_time_days
         quote.notes = payload.notes
         quote.submitted_at = now
+        audit_action = "quote.revised"
     else:
+        before_quote = None
         quote = Quote(
             quote_request_id=qr.id,
             supplier_organisation_id=auth.organisation_id,
@@ -669,6 +771,7 @@ async def submit_quote(
             created_at=now,
         )
         db.add(quote)
+        audit_action = "quote.submitted"
 
     qrs_stmt = select(QuoteRequestSupplier).where(
         QuoteRequestSupplier.quote_request_id == qr.id,
@@ -688,15 +791,19 @@ async def submit_quote(
     await log_audit_event(
         db=db,
         organisation_id=auth.organisation_id,
-        actor_user_id=auth.user_id,
+        actor_user_id=None if auth.is_rfq_direct else auth.user_id,
         entity_type="quote",
         entity_id=quote.id,
-        action="quote.submitted",
+        action=audit_action,
+        before_json=before_quote,
         after_json={
             "unit_price_minor": quote.unit_price_minor,
             "total_price_minor": quote.total_price_minor,
+            "currency": quote.currency,
             "lead_time_days": quote.lead_time_days,
+            "notes": quote.notes,
         },
+        metadata_json={"access_method": "rfq_link"} if auth.is_rfq_direct else None,
     )
 
     await db.commit()
@@ -773,12 +880,12 @@ async def get_boq_quote_comparison(
         fastest_quote = min(quotes_with_lead, key=lambda q: q.lead_time_days) if quotes_with_lead else None
         selected_quote = next((q for q in quotes_list if q.is_selected), None)
 
-        if li.final_price_minor:
-            total_priced += int(li.final_price_minor * li.quantity)
+        if li.final_price_minor is not None:
+            total_priced += calculate_total_minor(li.final_price_minor, li.quantity)
         elif lowest_quote:
-            total_estimated += int(lowest_quote.unit_price_minor * li.quantity)
+            total_estimated += calculate_total_minor(lowest_quote.unit_price_minor, li.quantity)
         elif li.benchmark_max_minor:
-            total_estimated += int(li.benchmark_max_minor * li.quantity)
+            total_estimated += calculate_total_minor(li.benchmark_max_minor, li.quantity)
 
         deadline = active_qr.response_deadline if active_qr else None
         is_passed = check_is_expired(deadline) if deadline else False
@@ -1076,7 +1183,7 @@ async def auto_select_best_quotes_for_boq(
     all_line_items = all_li_res.scalars().all()
 
     total_priced_minor = sum(
-        int((li.final_price_minor or 0) * (li.quantity or 1.0))
+        calculate_total_minor(li.final_price_minor or 0, li.quantity)
         for li in all_line_items
         if li.final_price_minor
     )

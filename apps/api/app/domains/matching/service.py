@@ -1,21 +1,39 @@
-from typing import List, Tuple
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.models import Organisation, SupplierProfile
+from app.core.models import SupplierProfile
 from app.schemas.suppliers import SupplierMatchResponse
+
+PILOT_ACTIVE_CATEGORIES = frozenset(
+    {"building-materials", "concrete", "earthworks"}
+)
+PILOT_REGION_NAMES = frozenset({"ethekwini", "durban"})
+PILOT_SERVICE_REGION_NAMES = PILOT_REGION_NAMES | frozenset(
+    {"kwazulu-natal", "national", "all"}
+)
+
+
+def is_pilot_region(region: str) -> bool:
+    return region.strip().lower() in PILOT_REGION_NAMES
+
+
+def profile_has_pilot_scope(categories: list[str], service_regions: list[str]) -> bool:
+    normalized_categories = {category.strip().lower() for category in categories}
+    normalized_regions = {region.strip().lower() for region in service_regions}
+    return bool(
+        normalized_categories.intersection(PILOT_ACTIVE_CATEGORIES)
+        and normalized_regions.intersection(PILOT_SERVICE_REGION_NAMES)
+    )
 
 
 async def match_suppliers_for_item(
     category: str,
     region: str,
     db: AsyncSession,
-) -> List[SupplierMatchResponse]:
+) -> list[SupplierMatchResponse]:
     """
-    Deterministic supplier matcher:
-    Finds active supplier organisations where supplier category matches item category
-    and supplier service regions include the tender region.
+    Match only the active eThekwini supplier-pilot categories and region.
     """
     stmt = (
         select(SupplierProfile)
@@ -28,9 +46,11 @@ async def match_suppliers_for_item(
     result = await db.execute(stmt)
     profiles = result.scalars().all()
 
-    matched: List[SupplierMatchResponse] = []
+    matched: list[SupplierMatchResponse] = []
     target_category = category.lower().strip()
     target_region = region.lower().strip()
+    if target_category not in PILOT_ACTIVE_CATEGORIES or not is_pilot_region(target_region):
+        return matched
 
     for p in profiles:
         org = p.organisation
@@ -43,21 +63,17 @@ async def match_suppliers_for_item(
         reasons = []
 
         # Category match
-        category_matched = (
-            target_category in sup_categories
-            or "all" in sup_categories
-            or "general-building" in sup_categories
-            or target_category == "general-building"
-        )
+        category_matched = target_category in sup_categories
         if category_matched:
             reasons.append(f"Category matched: '{category}'")
 
         # Region match
         region_matched = (
             target_region in sup_regions
+            or "durban" in sup_regions
+            or "kwazulu-natal" in sup_regions
             or "national" in sup_regions
             or "all" in sup_regions
-            or not sup_regions
         )
         if region_matched:
             reasons.append(f"Region matched: '{region}'")

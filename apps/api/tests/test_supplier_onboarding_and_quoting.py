@@ -1,6 +1,9 @@
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.models import AuditEvent
 from app.core.security import create_rfq_access_token
 
 
@@ -50,7 +53,7 @@ async def test_supplier_approval_is_required_for_matching_and_delivery(
     supplier_token = pending_supplier["token"]
 
     matching_res = await client.get(
-        "/api/v1/suppliers/match?category=building-materials&region=KwaZulu-Natal",
+        "/api/v1/suppliers/match?category=building-materials&region=eThekwini",
         headers={"Authorization": f"Bearer {contractor_token}"},
     )
     assert matching_res.status_code == 200
@@ -78,7 +81,7 @@ async def test_supplier_approval_is_required_for_matching_and_delivery(
     assert approved_profile_res.json()["status"] == "approved"
 
     matching_after_approval = await client.get(
-        "/api/v1/suppliers/match?category=building-materials&region=KwaZulu-Natal",
+        "/api/v1/suppliers/match?category=building-materials&region=eThekwini",
         headers={"Authorization": f"Bearer {contractor_token}"},
     )
     assert supplier_org_id in {
@@ -144,7 +147,7 @@ async def test_supplier_profile_endpoints(client: AsyncClient, seeded_entities: 
         "/api/v1/suppliers/profile",
         headers={"Authorization": f"Bearer {supplier_token}"},
         json={
-            "categories": ["building-materials", "roofing", "plumbing"],
+            "categories": ["building-materials", "concrete", "earthworks"],
             "service_regions": ["KwaZulu-Natal", "Eastern Cape"],
             "preferred_contact_method": "email",
             "compliance_flags": {"bbee_level": "2", "csd_registered": True},
@@ -152,7 +155,7 @@ async def test_supplier_profile_endpoints(client: AsyncClient, seeded_entities: 
     )
     assert update_res.status_code == 200
     updated = update_res.json()
-    assert "roofing" in updated["categories"]
+    assert "earthworks" in updated["categories"]
     assert "Eastern Cape" in updated["service_regions"]
     assert updated["preferred_contact_method"] == "email"
 
@@ -171,7 +174,7 @@ async def test_rfq_broadcast_and_frictionless_mobile_token_quoting(
         json={
             "title": "Durban Port Perimeter Retaining Wall Tender",
             "tender_reference": "TRANSNET-2026-09",
-            "region": "KwaZulu-Natal",
+            "region": "eThekwini",
         },
     )
     assert boq_res.status_code == 201
@@ -215,7 +218,8 @@ async def test_rfq_broadcast_and_frictionless_mobile_token_quoting(
 
     # 5a. Supplier retrieves RFQ specifications
     mobile_view_res = await client.get(
-        f"/api/v1/suppliers/quote-requests/{qr_id}?access_token={rfq_direct_token}"
+        f"/api/v1/suppliers/quote-requests/{qr_id}",
+        headers={"Authorization": f"Bearer {rfq_direct_token}"},
     )
     assert mobile_view_res.status_code == 200
     mobile_data = mobile_view_res.json()
@@ -223,14 +227,21 @@ async def test_rfq_broadcast_and_frictionless_mobile_token_quoting(
     assert mobile_data["line_item_quantity"] == 600
     assert mobile_data["line_item_unit"] == "no"
 
-    profile_res = await client.get(f"/api/v1/suppliers/profile?access_token={rfq_direct_token}")
-    inbox_res = await client.get(f"/api/v1/suppliers/quote-requests?access_token={rfq_direct_token}")
+    profile_res = await client.get(
+        "/api/v1/suppliers/profile",
+        headers={"Authorization": f"Bearer {rfq_direct_token}"},
+    )
+    inbox_res = await client.get(
+        "/api/v1/suppliers/quote-requests",
+        headers={"Authorization": f"Bearer {rfq_direct_token}"},
+    )
     assert profile_res.status_code == 403
     assert inbox_res.status_code == 403
 
     # 5b. Supplier submits quote using only query access_token (NO prior login session)
     quote_submit_res = await client.post(
-        f"/api/v1/quote-requests/{qr_id}/quotes?access_token={rfq_direct_token}",
+        f"/api/v1/quote-requests/{qr_id}/quotes",
+        headers={"Authorization": f"Bearer {rfq_direct_token}"},
         json={
             "unit_price_minor": 9850,  # R98.50 per bag
             "currency": "ZAR",
@@ -272,7 +283,118 @@ async def test_rfq_token_security_and_tenant_isolation(
         quote_request_id="request-aaa", supplier_org_id=seeded_entities["supplier1_org"].id
     )
     mismatch_res = await client.post(
-        f"/api/v1/quote-requests/request-bbb/quotes?access_token={token_for_request_a}",
+        "/api/v1/quote-requests/request-bbb/quotes",
+        headers={"Authorization": f"Bearer {token_for_request_a}"},
         json={"unit_price_minor": 5000, "currency": "ZAR"},
     )
     assert mismatch_res.status_code == 403
+
+    query_token_res = await client.get(
+        "/api/v1/suppliers/quote-requests/request-aaa"
+        f"?access_token={token_for_request_a}"
+    )
+    assert query_token_res.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_direct_rfq_quote_audit_does_not_claim_a_user_account(
+    client: AsyncClient,
+    seeded_entities: dict,
+    db_session: AsyncSession,
+):
+    contractor_headers = {"Authorization": f"Bearer {seeded_entities['contractor_token']}"}
+    boq = await client.post(
+        "/api/v1/boqs",
+        headers=contractor_headers,
+        json={"title": "Direct RFQ audit test", "region": "eThekwini"},
+    )
+    item = await client.post(
+        f"/api/v1/boqs/{boq.json()['id']}/line-items",
+        headers=contractor_headers,
+        json={
+            "description": "Portland cement 42.5N",
+            "quantity": 20,
+            "unit": "bag",
+            "category": "building-materials",
+        },
+    )
+    request = await client.post(
+        "/api/v1/quote-requests",
+        headers=contractor_headers,
+        json={
+            "line_item_id": item.json()["id"],
+            "response_deadline": "2026-12-31T17:00:00Z",
+        },
+    )
+    assert request.status_code == 201
+    request_id = request.json()["id"]
+    broadcast = await client.post(
+        f"/api/v1/quote-requests/{request_id}/broadcast",
+        headers=contractor_headers,
+    )
+    assert broadcast.status_code == 200
+
+    direct_token = create_rfq_access_token(
+        quote_request_id=request_id,
+        supplier_org_id=seeded_entities["supplier1_org"].id,
+    )
+    submitted = await client.post(
+        f"/api/v1/quote-requests/{request_id}/quotes",
+        headers={"Authorization": f"Bearer {direct_token}"},
+        json={"unit_price_minor": 5000, "currency": "ZAR"},
+    )
+    assert submitted.status_code == 201
+
+    event = await db_session.scalar(
+        select(AuditEvent).where(
+            AuditEvent.entity_type == "quote",
+            AuditEvent.entity_id == submitted.json()["id"],
+            AuditEvent.action == "quote.submitted",
+        )
+    )
+    assert event is not None
+    assert event.actor_user_id is None
+    assert event.organisation_id == seeded_entities["supplier1_org"].id
+    assert event.metadata_json == {"access_method": "rfq_link"}
+
+
+@pytest.mark.asyncio
+async def test_broadcast_never_uses_unmatched_or_unapproved_suppliers(
+    client: AsyncClient,
+    seeded_entities: dict,
+    pending_supplier: dict,
+):
+    contractor_headers = {"Authorization": f"Bearer {seeded_entities['contractor_token']}"}
+    boq = await client.post(
+        "/api/v1/boqs",
+        headers=contractor_headers,
+        json={"title": "Unmatched roofing request", "region": "eThekwini"},
+    )
+    item = await client.post(
+        f"/api/v1/boqs/{boq.json()['id']}/line-items",
+        headers=contractor_headers,
+        json={
+            "description": "Supply roofing sheets to site",
+            "quantity": 10,
+            "unit": "no",
+            "category": "roofing",
+        },
+    )
+    request = await client.post(
+        "/api/v1/quote-requests",
+        headers=contractor_headers,
+        json={"line_item_id": item.json()["id"], "response_deadline": "2026-12-31T23:59:59Z"},
+    )
+    broadcast_url = f"/api/v1/quote-requests/{request.json()['id']}/broadcast"
+
+    unmatched = await client.post(broadcast_url, headers=contractor_headers)
+    assert unmatched.status_code == 422
+    assert unmatched.json()["detail"]["code"] == "NO_MATCHED_SUPPLIERS"
+
+    unapproved = await client.post(
+        broadcast_url,
+        headers=contractor_headers,
+        json={"supplier_organisation_ids": [pending_supplier["organisation"].id]},
+    )
+    assert unapproved.status_code == 422
+    assert unapproved.json()["detail"]["code"] == "INVALID_SUPPLIER_RECIPIENTS"
